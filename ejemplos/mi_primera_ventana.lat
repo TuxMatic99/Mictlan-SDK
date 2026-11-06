@@ -1,0 +1,32 @@
+
+# Mi primera aplicación gráfica en Mictlán
+
+ui.titulo("Mictlán - Mi primera aplicación")
+
+ui.iniciar_columna(12)
+    ui.etiqueta("Bienvenido a Mictlán")
+
+    ui.etiqueta_id(10, "Selecciona una opción")
+
+    ui.iniciar_fila(10)
+        ui.boton(1, "Saludar")
+        ui.boton(2, "Despedirse")
+    ui.fin_contenedor()
+
+ui.fin_contenedor()
+
+
+# Función que recibe los eventos de los botones
+funcion __ui_despachar()
+    identificador = ui_cb.id_actual()
+
+    si (identificador == 1)
+        actualizado = ui.poner_texto(10, "Hola desde Mictlán")
+        escribir("Se pulsó Saludar")
+
+    osi (identificador == 2)
+        actualizado = ui.poner_texto(10, "Hasta pronto")
+        escribir("Se pulsó Despedirse")
+
+    fin
+fin
