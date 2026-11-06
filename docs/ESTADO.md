@@ -31,29 +31,32 @@ CTest: 24/24 pruebas aprobadas.
 Tiempo observado: 0,49 segundos.
 
 
-## Hito: biblioteca de dibujo 2D
+
+## Hito: primer renderizador gráfico 2D
 
 Fecha: 6 de noviembre de 2026
 
-Estado: implementación inicial aprobada.
+Estado: demostración visual aprobada.
 
 ### Resultados
 
 - Biblioteca mictlan_dibujo2d compilada.
-- Registro de círculos implementado.
-- Validación de coordenadas y radio implementada.
-- Capacidad inicial: 128 círculos.
-- Prueba mictlan_dibujo2d_basico aprobada.
-- Suite completa del SDK: 24/24 pruebas aprobadas.
-- Tiempo observado de CTest: 0,45 segundos.
+- Backend mictlan_render_raylib compilado.
+- Demostración demo_mictlan_dibujo2d compilada.
+- Círculo naranja renderizado en una ventana real.
+- OpenGL 4.6 inicializado correctamente.
+- Recursos gráficos liberados al cerrar.
+- 24 de 24 pruebas automatizadas aprobadas.
+- Tiempo total de CTest: 1,66 segundos.
 
 ### Pendientes
 
-- Renderizar los círculos mediante Raylib.
-- Integrar la biblioteca con host_ui.
-- Exponer funciones gráficas mediante FFI.
-- Dibujar figuras desde Mictlán Lab.
-- Realizar pruebas de memoria y gráficos.
+- Conectar el renderizador con host_ui.
+- Exponer la API gráfica mediante FFI.
+- Dibujar círculos desde archivos .lat.
+- Añadir pruebas automatizadas de la integración.
+- Comprobar memoria mediante sanitizadores.
+
 
 ## Prueba gráfica real
 

@@ -437,3 +437,37 @@ if(BUILD_TESTING)
         COMMAND test_mictlan_dibujo2d
     )
 endif()
+
+
+
+# Backend de renderizado 2D con Raylib
+
+add_library(mictlan_render_raylib STATIC
+    src/graficos/dibujo2d_raylib.c
+)
+
+target_include_directories(mictlan_render_raylib
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(mictlan_render_raylib
+    PUBLIC
+        mictlan_dibujo2d
+    PRIVATE
+        raylib
+)
+
+
+
+# Demostración visual del renderizador Mictlán 2D
+
+add_executable(demo_mictlan_dibujo2d
+    tests/demo_mictlan_dibujo2d.c
+)
+
+target_link_libraries(demo_mictlan_dibujo2d
+    PRIVATE
+        mictlan_render_raylib
+        raylib
+)
