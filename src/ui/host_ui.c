@@ -13,8 +13,15 @@
 #include "ui_callbacks.h"
 #include "ui_despachador.h"
 #include "ui_biblioteca.h"
+#include <float.h>
+#include "mictlan_dibujo2d.h"
+
+#ifndef MICTLAN_HOST_PRUEBAS
+#include "mictlan_render_raylib.h"
+#endif
 
 static UIRuntime ui;
+static MictlanLienzo lienzo_graficos;
 static int siguiente_etiqueta = 10000;
 
 static int *ultimo_clic_ptr = NULL;
@@ -88,6 +95,65 @@ static void n_columna(lat_mv *mv) {
 }
 static void n_fin(lat_mv *mv) { (void)mv; (void)lui_fin_contenedor(&ui); }
 
+
+/* Validar que un componente RGB sea un entero entre 0 y 255. */
+static bool canal_color_valido(double valor)
+{
+    return isfinite(valor) &&
+           valor >= 0.0 &&
+           valor <= 255.0 &&
+           floor(valor) == valor;
+}
+
+/* Puente FFI: Mictlan -> biblioteca grafica en C. */
+static void n_graficos_circulo(lat_mv *mv)
+{
+    /* La pila entrega los argumentos en orden inverso. */
+    double azul = latC_checar_numerico(mv, latC_desapilar(mv));
+    double verde = latC_checar_numerico(mv, latC_desapilar(mv));
+    double rojo = latC_checar_numerico(mv, latC_desapilar(mv));
+    double radio = latC_checar_numerico(mv, latC_desapilar(mv));
+    double y = latC_checar_numerico(mv, latC_desapilar(mv));
+    double x = latC_checar_numerico(mv, latC_desapilar(mv));
+
+    bool coordenadas_validas =
+        isfinite(x) && isfinite(y) && isfinite(radio) &&
+        fabs(x) <= FLT_MAX &&
+        fabs(y) <= FLT_MAX &&
+        radio > 0.0 && radio <= FLT_MAX;
+
+    bool colores_validos =
+        canal_color_valido(rojo) &&
+        canal_color_valido(verde) &&
+        canal_color_valido(azul);
+
+    bool correcto = false;
+
+    if (coordenadas_validas && colores_validos) {
+        correcto = mictlan_lienzo_agregar_circulo(
+            &lienzo_graficos,
+            (float)x,
+            (float)y,
+            (float)radio,
+            (unsigned char)rojo,
+            (unsigned char)verde,
+            (unsigned char)azul,
+            255
+        );
+    }
+
+    latC_apilar(
+        mv,
+        correcto ? latO_verdadero : latO_falso
+    );
+}
+
+static const lat_CReg libgraficos[] = {
+    {"circulo", n_graficos_circulo, 6},
+    {NULL, NULL, 0}
+};
+
+
 static const lat_CReg libui[] = {
     {"titulo", n_titulo, 1},
     {"etiqueta", n_etiqueta, 1},
@@ -136,6 +202,7 @@ int main(int argc, char **argv) {
     int salida = EXIT_FAILURE;
     int ultimo_clic = -1;
     siguiente_etiqueta = 10000;
+    mictlan_lienzo_inicializar(&lienzo_graficos);
     ultimo_clic_ptr = NULL;
     if (!lui_inicializar(&ui)) goto cerrar;
 
@@ -151,6 +218,7 @@ int main(int argc, char **argv) {
     mv = latC_crear_mv();
     if (!mv) { fprintf(stderr, "No se pudo crear VM\n"); goto cerrar; }
     latC_abrir_liblatino(mv, "ui", libui);
+    latC_abrir_liblatino(mv, "graficos", libgraficos);
     biblioteca = ui_biblioteca_crear(mv, NULL);
     if (!biblioteca) { fprintf(stderr, "LatinoUI: no se pudo crear biblioteca\n"); goto cerrar; }
     ui_biblioteca_conectar_ui(biblioteca, &ui);
@@ -306,6 +374,11 @@ int main(int argc, char **argv) {
             }
         }
         DrawText(TextFormat("Ultimo clic: %d", ultimo_clic), 24, GetScreenHeight() - 31, 20, DARKGRAY);
+
+        #ifndef MICTLAN_HOST_PRUEBAS
+            mictlan_renderizar_lienzo(&lienzo_graficos);
+        #endif
+        
         EndDrawing();
     }
     salida = EXIT_SUCCESS;

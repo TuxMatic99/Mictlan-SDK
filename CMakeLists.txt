@@ -471,3 +471,68 @@ target_link_libraries(demo_mictlan_dibujo2d
         mictlan_render_raylib
         raylib
 )
+
+
+
+# Integración de gráficos 2D con el host real
+target_link_libraries(host_ui
+    PRIVATE mictlan_render_raylib
+)
+
+# Las pruebas usan almacenamiento real de figuras,
+# pero no necesitan un backend de GPU.
+if(BUILD_TESTING)
+    target_compile_definitions(
+        host_ui_para_pruebas
+        PRIVATE MICTLAN_HOST_PRUEBAS
+    )
+
+    target_link_libraries(
+        host_ui_para_pruebas
+        PRIVATE mictlan_dibujo2d
+    )
+
+    target_link_libraries(
+        test_ui_host
+        PRIVATE mictlan_dibujo2d
+    )
+endif()
+
+
+
+# Mictlán Graphics:
+# Compatibilidad con las pruebas históricas del host.
+
+if(BUILD_TESTING)
+
+    # Prueba de integración de la biblioteca.
+    if(TARGET test_ui_biblioteca)
+
+        target_compile_definitions(
+            test_ui_biblioteca
+            PRIVATE MICTLAN_HOST_PRUEBAS
+        )
+
+        target_link_libraries(
+            test_ui_biblioteca
+            PRIVATE mictlan_dibujo2d
+        )
+
+    endif()
+
+    # Prueba del editor y su host.
+    if(TARGET test_ui_edicion_host)
+
+        target_compile_definitions(
+            test_ui_edicion_host
+            PRIVATE MICTLAN_HOST_PRUEBAS
+        )
+
+        target_link_libraries(
+            test_ui_edicion_host
+            PRIVATE mictlan_dibujo2d
+        )
+
+    endif()
+
+endif()
