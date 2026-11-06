@@ -410,3 +410,30 @@ if(BUILD_TESTING)
         endif()
     endforeach()
 endif()
+
+
+
+# Mictlan: comandos de dibujo 2D
+add_library(mictlan_dibujo2d STATIC
+    src/graficos/dibujo2d.c
+)
+
+target_include_directories(mictlan_dibujo2d
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+if(BUILD_TESTING)
+    add_executable(test_mictlan_dibujo2d
+        tests/test_mictlan_dibujo2d.c
+    )
+
+    target_link_libraries(test_mictlan_dibujo2d
+        PRIVATE mictlan_dibujo2d
+    )
+
+    add_test(
+        NAME mictlan_dibujo2d_basico
+        COMMAND test_mictlan_dibujo2d
+    )
+endif()

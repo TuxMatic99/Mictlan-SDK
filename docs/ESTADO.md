@@ -27,8 +27,33 @@ Resultado: compilación Debug correcta.
 
 ## Pruebas automatizadas
 
-CTest: 23/23 pruebas aprobadas.
+CTest: 24/24 pruebas aprobadas.
 Tiempo observado: 0,49 segundos.
+
+
+## Hito: biblioteca de dibujo 2D
+
+Fecha: 6 de noviembre de 2026
+
+Estado: implementación inicial aprobada.
+
+### Resultados
+
+- Biblioteca mictlan_dibujo2d compilada.
+- Registro de círculos implementado.
+- Validación de coordenadas y radio implementada.
+- Capacidad inicial: 128 círculos.
+- Prueba mictlan_dibujo2d_basico aprobada.
+- Suite completa del SDK: 24/24 pruebas aprobadas.
+- Tiempo observado de CTest: 0,45 segundos.
+
+### Pendientes
+
+- Renderizar los círculos mediante Raylib.
+- Integrar la biblioteca con host_ui.
+- Exponer funciones gráficas mediante FFI.
+- Dibujar figuras desde Mictlán Lab.
+- Realizar pruebas de memoria y gráficos.
 
 ## Prueba gráfica real
 
