@@ -597,3 +597,42 @@ if(BUILD_TESTING)
         endif()
     endforeach()
 endif()
+
+
+
+# ==============================================
+# MICTLAN CIENCIA: VECTORES BIDIMENSIONALES
+# ==============================================
+
+# Biblioteca matematica independiente.
+add_library(mictlan_ciencia_vectores2d STATIC
+    src/ciencia/vectores2d.c
+)
+
+# Permitir que otros modulos encuentren su cabecera.
+target_include_directories(mictlan_ciencia_vectores2d PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+# En sistemas Unix, enlazar la biblioteca matematica.
+if(UNIX)
+    target_link_libraries(mictlan_ciencia_vectores2d PUBLIC m)
+endif()
+
+# Crear las pruebas solo cuando esten habilitadas.
+if(BUILD_TESTING)
+
+    add_executable(test_mictlan_vectores2d
+        tests/test_mictlan_vectores2d.c
+    )
+
+    target_link_libraries(test_mictlan_vectores2d PRIVATE
+        mictlan_ciencia_vectores2d
+    )
+
+    add_test(
+        NAME mictlan_ciencia_vectores2d_basico
+        COMMAND test_mictlan_vectores2d
+    )
+
+endif()
