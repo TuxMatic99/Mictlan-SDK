@@ -558,3 +558,42 @@ if(BUILD_TESTING AND TARGET test_ui_host)
     )
 
 endif()
+
+
+# Mictlan Graphics: puente FFI independiente.
+
+add_library(mictlan_graficos_ffi STATIC
+    src/graficos/mictlan_graficos_ffi.c
+)
+
+target_include_directories(mictlan_graficos_ffi
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${LATINO_INCLUDE_DIR}
+)
+
+target_link_libraries(mictlan_graficos_ffi
+    PUBLIC mictlan_dibujo2d
+    PRIVATE ${LATINO_LIBRARY}
+)
+
+# Aplicacion grafica real.
+target_link_libraries(host_ui
+    PRIVATE mictlan_graficos_ffi
+)
+
+# Ejecutables que utilizan el host durante las pruebas.
+if(BUILD_TESTING)
+    foreach(prueba IN ITEMS
+        host_ui_para_pruebas
+        test_ui_host
+        test_ui_biblioteca
+        test_ui_edicion_host
+    )
+        if(TARGET ${prueba})
+            target_link_libraries(${prueba}
+                PRIVATE mictlan_graficos_ffi
+            )
+        endif()
+    endforeach()
+endif()

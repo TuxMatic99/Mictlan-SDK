@@ -15,6 +15,7 @@
 #include "ui_biblioteca.h"
 #include <float.h>
 #include "mictlan_dibujo2d.h"
+#include "mictlan_graficos_ffi.h"
 
 #ifndef MICTLAN_HOST_PRUEBAS
 #include "mictlan_render_raylib.h"
@@ -96,62 +97,10 @@ static void n_columna(lat_mv *mv) {
 static void n_fin(lat_mv *mv) { (void)mv; (void)lui_fin_contenedor(&ui); }
 
 
-/* Validar que un componente RGB sea un entero entre 0 y 255. */
-static bool canal_color_valido(double valor)
-{
-    return isfinite(valor) &&
-           valor >= 0.0 &&
-           valor <= 255.0 &&
-           floor(valor) == valor;
-}
 
-/* Puente FFI: Mictlan -> biblioteca grafica en C. */
-static void n_graficos_circulo(lat_mv *mv)
-{
-    /* La pila entrega los argumentos en orden inverso. */
-    double azul = latC_checar_numerico(mv, latC_desapilar(mv));
-    double verde = latC_checar_numerico(mv, latC_desapilar(mv));
-    double rojo = latC_checar_numerico(mv, latC_desapilar(mv));
-    double radio = latC_checar_numerico(mv, latC_desapilar(mv));
-    double y = latC_checar_numerico(mv, latC_desapilar(mv));
-    double x = latC_checar_numerico(mv, latC_desapilar(mv));
 
-    bool coordenadas_validas =
-        isfinite(x) && isfinite(y) && isfinite(radio) &&
-        fabs(x) <= FLT_MAX &&
-        fabs(y) <= FLT_MAX &&
-        radio > 0.0 && radio <= FLT_MAX;
 
-    bool colores_validos =
-        canal_color_valido(rojo) &&
-        canal_color_valido(verde) &&
-        canal_color_valido(azul);
 
-    bool correcto = false;
-
-    if (coordenadas_validas && colores_validos) {
-        correcto = mictlan_lienzo_agregar_circulo(
-            &lienzo_graficos,
-            (float)x,
-            (float)y,
-            (float)radio,
-            (unsigned char)rojo,
-            (unsigned char)verde,
-            (unsigned char)azul,
-            255
-        );
-    }
-
-    latC_apilar(
-        mv,
-        correcto ? latO_verdadero : latO_falso
-    );
-}
-
-static const lat_CReg libgraficos[] = {
-    {"circulo", n_graficos_circulo, 6},
-    {NULL, NULL, 0}
-};
 
 
 static const lat_CReg libui[] = {
@@ -218,7 +167,10 @@ int main(int argc, char **argv) {
     mv = latC_crear_mv();
     if (!mv) { fprintf(stderr, "No se pudo crear VM\n"); goto cerrar; }
     latC_abrir_liblatino(mv, "ui", libui);
-    latC_abrir_liblatino(mv, "graficos", libgraficos);
+    mictlan_graficos_ffi_registrar(
+        mv,
+        &lienzo_graficos
+    );
     biblioteca = ui_biblioteca_crear(mv, NULL);
     if (!biblioteca) { fprintf(stderr, "LatinoUI: no se pudo crear biblioteca\n"); goto cerrar; }
     ui_biblioteca_conectar_ui(biblioteca, &ui);
@@ -386,6 +338,7 @@ int main(int argc, char **argv) {
 cerrar:
     if (ventana_abierta) CloseWindow();
     ui_cb_desregistrar(&callbacks);
+    mictlan_graficos_ffi_desconectar();
     ultimo_clic_ptr = NULL;
     ui_biblioteca_destruir(biblioteca);
     if (vm_comprometida || despachador.estado_vm == UI_VM_COMPROMETIDA ||
