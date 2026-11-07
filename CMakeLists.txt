@@ -536,3 +536,25 @@ if(BUILD_TESTING)
     endif()
 
 endif()
+
+
+# Prueba de integración de la FFI gráfica de Mictlán
+
+if(BUILD_TESTING AND TARGET test_ui_host)
+
+    add_test(
+        NAME mictlan_graficos_ffi
+        COMMAND test_ui_host
+            --graficos
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/datos/mictlan_graficos_ffi.lat"
+    )
+
+    set_tests_properties(
+        mictlan_graficos_ffi
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION "FFI_GRAFICOS_OK"
+            FAIL_REGULAR_EXPRESSION "FFI_GRAFICOS_FALLO"
+            TIMEOUT 10
+    )
+
+endif()

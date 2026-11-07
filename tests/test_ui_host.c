@@ -224,6 +224,29 @@ static void probar_persistencia(const char *ruta) {
 
 int main(int argc, char **argv) {
     EXIGIR(argc == 3);
+
+
+    /* Prueba de la API grafica de Mictlan. */
+    if (!strcmp(argv[1], "--graficos")) {
+        char *args[] = {"host_ui", argv[2], NULL};
+
+        /* Simular una ventana durante un fotograma. */
+        reiniciar(1, false);
+
+        EXIGIR(
+            latino_ui_host_main(2, args) == EXIT_SUCCESS
+        );
+
+        /* Comprobar apertura, cierre y fotograma. */
+        EXIGIR(!pantalla.abierta);
+        EXIGIR(pantalla.aperturas == 1);
+        EXIGIR(pantalla.cierres == 1);
+        EXIGIR(pantalla.frames == 1);
+
+        return 0;
+    }
+
+    
 #ifdef __linux__
     if (!strcmp(argv[1],"--persistencia")) { probar_persistencia(argv[2]); return 0; }
 #endif

@@ -1,0 +1,36 @@
+
+# Prueba de la interfaz gráfica de Mictlán
+
+ui.titulo("Prueba de graficos")
+
+ui.iniciar_columna(8)
+    ui.etiqueta("Comprobando API grafica")
+ui.fin_contenedor()
+
+# Caso 1: círculo válido
+aceptado = graficos.circulo(
+    150, 120, 40, 230, 110, 60
+)
+
+# Caso 2: radio negativo
+radio_invalido = graficos.circulo(
+    150, 120, -5, 230, 110, 60
+)
+
+# Caso 3: componente de color fuera de rango
+color_invalido = graficos.circulo(
+    150, 120, 40, 300, 110, 60
+)
+
+# Comprobar los resultados
+si (aceptado)
+    si (radio_invalido)
+        escribir("FFI_GRAFICOS_FALLO")
+    osi (color_invalido)
+        escribir("FFI_GRAFICOS_FALLO")
+    sino
+        escribir("FFI_GRAFICOS_OK")
+    fin
+sino
+    escribir("FFI_GRAFICOS_FALLO")
+fin
