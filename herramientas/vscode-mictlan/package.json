@@ -1,0 +1,47 @@
+{
+  "name": "mictlan-language",
+  "displayName": "Mictlán: lenguaje y archivos .mict",
+  "description": "Identificación de archivos .mict, iconografía original y resaltado inicial de sintaxis.",
+  "version": "0.1.0",
+  "publisher": "tuxmatic",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "Mictlan",
+    "Mictlán",
+    "mict",
+    "programacion",
+    "espanol"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "mictlan",
+        "aliases": [
+          "Mictlán",
+          "Mictlan"
+        ],
+        "extensions": [
+          ".mict"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/mictlan-light.png",
+          "dark": "./icons/mictlan-dark.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mictlan",
+        "scopeName": "source.mictlan",
+        "path": "./syntaxes/mictlan.tmLanguage.json"
+      }
+    ]
+  }
+}

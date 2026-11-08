@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="text/x-mictlan">
+    <comment>Programa Mictlán</comment>
+    <comment xml:lang="es">Programa Mictlán</comment>
+    <generic-icon name="text-x-mictlan"/>
+    <glob pattern="*.mict" weight="90"/>
+  </mime-type>
+</mime-info>

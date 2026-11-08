@@ -1,0 +1,52 @@
+{
+  "name": "Mictlán (alfa)",
+  "scopeName": "source.mictlan",
+  "patterns": [
+    {
+      "name": "comment.line.number-sign.mictlan",
+      "match": "#.*$"
+    },
+    {
+      "name": "string.quoted.double.mictlan",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mictlan",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single.mictlan",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mictlan",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "constant.numeric.mictlan",
+      "match": "\\b\\d+(?:\\.\\d+)?\\b"
+    },
+    {
+      "name": "constant.language.mictlan",
+      "match": "\\b(?:verdadero|falso|nulo)\\b"
+    },
+    {
+      "name": "keyword.control.mictlan",
+      "match": "\\b(?:si|sino|mientras|para|retornar|romper|continuar|funcion|clase|incluir)\\b"
+    },
+    {
+      "name": "support.function.mictlan",
+      "match": "\\b(?:escribir)\\b(?=\\s*\\()"
+    },
+    {
+      "name": "entity.name.type.module.mictlan",
+      "match": "\\b(?:ciencia|graficos|ui)\\b(?=\\s*\\.)"
+    }
+  ]
+}
