@@ -1,0 +1,18 @@
+
+# Mictlan Ciencia: prueba del producto punto.
+
+escribir("=== PRODUCTO PUNTO ===")
+
+# Dos vectores conocidos.
+resultado = ciencia.producto_punto2(3, 4, 5, 12)
+
+escribir("Producto punto de (3,4) y (5,12):")
+escribir(resultado)
+
+# Vectores perpendiculares.
+perpendicular = ciencia.producto_punto2(3, 4, -4, 3)
+
+escribir("Producto punto de vectores perpendiculares:")
+escribir(perpendicular)
+
+escribir("=== FIN ===")

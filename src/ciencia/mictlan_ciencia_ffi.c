@@ -47,11 +47,67 @@ static void n_ciencia_longitud2(lat_mv *mv)
     latC_apilar_double(mv, longitud);
 }
 
+
+/*
+ * Producto punto de dos vectores bidimensionales.
+ *
+ * Desde Mictlan:
+ * ciencia.producto_punto2(ax, ay, bx, by)
+ */
+static void n_ciencia_producto_punto2(lat_mv *mv)
+{
+    /* Los argumentos se extraen en orden inverso. */
+    double by = latC_checar_numerico(
+        mv, latC_desapilar(mv)
+    );
+
+    double bx = latC_checar_numerico(
+        mv, latC_desapilar(mv)
+    );
+
+    double ay = latC_checar_numerico(
+        mv, latC_desapilar(mv)
+    );
+
+    double ax = latC_checar_numerico(
+        mv, latC_desapilar(mv)
+    );
+
+    /* Validar las cuatro coordenadas. */
+    if (!isfinite(ax) || !isfinite(ay) ||
+        !isfinite(bx) || !isfinite(by)) {
+
+        latC_error(mv,
+            "ciencia.producto_punto2: "
+            "coordenadas no finitas");
+        return;
+    }
+
+    MictlanVector2 a = mictlan_vector2_crear(ax, ay);
+    MictlanVector2 b = mictlan_vector2_crear(bx, by);
+
+    double resultado =
+        mictlan_vector2_producto_punto(a, b);
+
+    if (!isfinite(resultado)) {
+        latC_error(mv,
+            "ciencia.producto_punto2: "
+            "resultado fuera de rango");
+        return;
+    }
+
+    latC_apilar_double(mv, resultado);
+}
+
+
 /* Tabla de funciones del modulo ciencia. */
+
 static const lat_CReg funciones_ciencia[] = {
     {"longitud2", n_ciencia_longitud2, 2},
+    {"producto_punto2", n_ciencia_producto_punto2, 4},
     {NULL, NULL, 0}
 };
+
 
 /* Registrar el modulo en la maquina virtual. */
 void mictlan_ciencia_ffi_registrar(lat_mv *mv)
