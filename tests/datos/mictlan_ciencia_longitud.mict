@@ -1,0 +1,8 @@
+
+# Primer experimento cientifico de Mictlan.
+# Calcular la longitud de un vector 2D.
+
+resultado = ciencia.longitud2(3, 4)
+
+escribir("Longitud del vector:")
+escribir(resultado)

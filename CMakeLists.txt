@@ -636,3 +636,65 @@ if(BUILD_TESTING)
     )
 
 endif()
+
+
+# ==============================================
+# MICTLAN CIENCIA: PUENTE FFI
+# ==============================================
+
+add_library(mictlan_ciencia_ffi STATIC
+    src/ciencia/mictlan_ciencia_ffi.c
+)
+
+target_include_directories(mictlan_ciencia_ffi
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${LATINO_INCLUDE_DIR}"
+)
+
+target_link_libraries(mictlan_ciencia_ffi
+    PUBLIC mictlan_ciencia_vectores2d
+    PRIVATE "${LATINO_LIBRARY}"
+)
+
+
+
+# ==============================================
+# MICTLAN CIENCIA: EJECUTOR DE CONSOLA
+# ==============================================
+
+add_executable(mictlan_ciencia_consola
+    src/ciencia/mictlan_ciencia_consola.c
+)
+
+target_link_libraries(mictlan_ciencia_consola
+    PRIVATE
+        mictlan_ciencia_ffi
+        "${LATINO_LIBRARY}"
+        m
+)
+
+
+
+# ==============================================
+# MICTLAN CIENCIA: PRUEBA DE INTEGRACION
+# ==============================================
+
+if(BUILD_TESTING)
+
+    add_test(
+        NAME mictlan_ciencia_longitud_integracion
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DMICTLAN_EJECUTABLE=$<TARGET_FILE:mictlan_ciencia_consola>"
+            "-DMICTLAN_PROGRAMA=${CMAKE_CURRENT_SOURCE_DIR}/tests/datos/mictlan_ciencia_longitud.mict"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/verificar_ciencia.cmake"
+    )
+
+    set_tests_properties(
+        mictlan_ciencia_longitud_integracion
+        PROPERTIES TIMEOUT 15
+    )
+
+endif()
