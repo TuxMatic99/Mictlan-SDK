@@ -8,6 +8,9 @@
 #include <math.h>
 #include <stddef.h>
 
+#include "latgc.h"
+#include "latmem.h"
+
 /*
  * Funcion visible desde Mictlan:
  *
@@ -126,10 +129,19 @@ static void devolver_vector2(
         latC_crear_numerico(mv, vector.y)
     );
 
-    latC_apilar(
-        mv,
-        latC_crear_lista(mv, componentes)
-    );
+
+    /* Crear el objeto temporal que representa la lista. */
+    lat_objeto *resultado =
+        latC_crear_lista(mv, componentes);
+
+    /* La pila conserva la referencia a los datos. */
+    latC_apilar(mv, resultado);
+
+#if !HABILITAR_GC
+    /* Liberar el envoltorio, pero NO la lista interna. */
+    latM_liberar(mv, resultado);
+#endif
+
 }
 
 /*

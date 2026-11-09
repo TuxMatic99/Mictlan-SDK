@@ -1,0 +1,32 @@
+
+# VectorLab 0.3
+# Comprobar referencias compartidas de vectores FFI.
+
+escribir("=== ALIAS VECTOR FFI ===")
+
+original = ciencia.sumar2(3, 4, 5, 12)
+
+alias = original
+
+# Modificar mediante el alias.
+alias[0] = 99
+
+escribir("Valor desde original:")
+escribir(original[0])
+
+# Reasignar original a una lista distinta.
+original = [7, 14]
+
+escribir("Valor conservado por alias:")
+escribir(alias[0])
+
+escribir("Valor de la nueva lista:")
+escribir(original[0])
+
+# Comprobar que el alias sigue siendo modificable.
+alias[1] = 77
+
+escribir("Segundo componente del alias:")
+escribir(alias[1])
+
+escribir("=== FIN ===")

@@ -796,3 +796,27 @@ if(BUILD_TESTING)
     )
 
 endif()
+
+
+# ==============================================
+# MICTLAN CIENCIA: REFERENCIAS COMPARTIDAS FFI
+# ==============================================
+
+if(BUILD_TESTING)
+
+    add_test(
+        NAME mictlan_ciencia_alias_vector_ffi
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DMICTLAN_EJECUTABLE=$<TARGET_FILE:mictlan_ciencia_consola>"
+            "-DMICTLAN_PROGRAMA=${CMAKE_CURRENT_SOURCE_DIR}/tests/datos/mictlan_alias_vector_ffi.mict"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/verificar_alias_vector_ffi.cmake"
+    )
+
+    set_tests_properties(
+        mictlan_ciencia_alias_vector_ffi
+        PROPERTIES TIMEOUT 15
+    )
+
+endif()
