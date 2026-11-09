@@ -1,0 +1,31 @@
+
+# Mictlan Ciencia: pruebas de suma vectorial.
+
+# Caso 1: vectores con coordenadas positivas.
+escribir("=== SUMA VECTORIAL ===")
+
+resultado = ciencia.sumar2(3, 4, 5, 12)
+
+escribir("Componente X:")
+escribir(resultado[0])
+
+escribir("Componente Y:")
+escribir(resultado[1])
+
+# Caso 2: dos vectores nulos.
+escribir("=== SUMA DE CEROS ===")
+
+ceros = ciencia.sumar2(0, 0, 0, 0)
+
+escribir(ceros[0])
+escribir(ceros[1])
+
+# Caso 3: coordenadas positivas y negativas.
+escribir("=== SIGNOS MIXTOS ===")
+
+mixto = ciencia.sumar2(-3, 4, 5, -12)
+
+escribir(mixto[0])
+escribir(mixto[1])
+
+escribir("=== FIN ===")

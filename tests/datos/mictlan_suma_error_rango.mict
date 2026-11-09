@@ -1,0 +1,8 @@
+
+# Comprobar un desbordamiento numerico.
+
+escribir("=== PRUEBA DE DESBORDAMIENTO ===")
+
+resultado = ciencia.sumar2(1e308, 0, 1e308, 0)
+
+escribir("ERROR: se acepto un resultado fuera de rango")

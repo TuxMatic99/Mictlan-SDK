@@ -723,3 +723,76 @@ if(BUILD_TESTING)
     )
 
 endif()
+
+
+# ==============================================
+# MICTLAN CIENCIA: PRUEBA DE SUMA VECTORIAL
+# ==============================================
+
+if(BUILD_TESTING)
+
+    add_test(
+        NAME mictlan_ciencia_suma_vectorial_integracion
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DMICTLAN_EJECUTABLE=$<TARGET_FILE:mictlan_ciencia_consola>"
+            "-DMICTLAN_PROGRAMA=${CMAKE_CURRENT_SOURCE_DIR}/tests/datos/mictlan_suma_vectorial.mict"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/verificar_suma_vectorial.cmake"
+    )
+
+    set_tests_properties(
+        mictlan_ciencia_suma_vectorial_integracion
+        PROPERTIES TIMEOUT 15
+    )
+
+endif()
+
+
+
+# ==============================================
+# MICTLAN CIENCIA: ERROR DE TIPO EN SUMA
+# ==============================================
+
+if(BUILD_TESTING)
+
+    add_test(
+        NAME mictlan_ciencia_suma_error_tipo
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DMICTLAN_EJECUTABLE=$<TARGET_FILE:mictlan_ciencia_consola>"
+            "-DMICTLAN_PROGRAMA=${CMAKE_CURRENT_SOURCE_DIR}/tests/datos/mictlan_suma_error_tipo.mict"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/verificar_suma_error_tipo.cmake"
+    )
+
+    set_tests_properties(
+        mictlan_ciencia_suma_error_tipo
+        PROPERTIES TIMEOUT 15
+    )
+
+endif()
+
+
+# ==============================================
+# MICTLAN CIENCIA: DESBORDAMIENTO EN SUMA
+# ==============================================
+
+if(BUILD_TESTING)
+
+    add_test(
+        NAME mictlan_ciencia_suma_error_rango
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DMICTLAN_EJECUTABLE=$<TARGET_FILE:mictlan_ciencia_consola>"
+            "-DMICTLAN_PROGRAMA=${CMAKE_CURRENT_SOURCE_DIR}/tests/datos/mictlan_suma_error_rango.mict"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/verificar_suma_error_rango.cmake"
+    )
+
+    set_tests_properties(
+        mictlan_ciencia_suma_error_rango
+        PROPERTIES TIMEOUT 15
+    )
+
+endif()
