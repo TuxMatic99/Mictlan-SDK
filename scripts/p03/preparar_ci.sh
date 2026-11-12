@@ -2,7 +2,7 @@
 # Compilar copias de CI en directorios nuevos; nunca instala ni edita Core.
 set -Eeuo pipefail
 if [[ $# -lt 5 || $# -gt 6 ]]; then
-    echo "Uso: bash preparar_ci.sh debug|release|sanitizers CORE RAYLIB TRABAJO_NUEVO SDK_SHA [p02d|p02e]" >&2
+    echo "Uso: bash preparar_ci.sh debug|release|sanitizers CORE RAYLIB TRABAJO_NUEVO SDK_SHA [REVISION_EN_CONTRATO]" >&2
     exit 3
 fi
 profile=$1
