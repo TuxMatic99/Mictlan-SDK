@@ -20,7 +20,7 @@ pruebas; el programa rechaza fuentes modificadas o versiones distintas.
 La matriz ejecuta base, F y F+E en Debug, Release y sanitizadores. Estos ultimos
 usan ASan y UBSan juntos, con LSan integrado activo al terminar el proceso.
 Tambien se comprueba LSan independiente mediante un programa limpio y otro con
-una fuga deliberada de 73 bytes. Los controles ASan/UBSan deben detectar errores
+una fuga deliberada de 137 bytes. Los controles ASan/UBSan deben detectar errores
 reales. No basta con que una opcion figure escrita en CMake.
 
 Se conservan 32 pruebas SDK, 65 del verificador, cuatro secuencias de VM,
