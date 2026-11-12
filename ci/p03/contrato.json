@@ -116,6 +116,22 @@
         "release": 13,
         "sanitizers": 29
       }
+    },
+    "p02f": {
+      "sha": "0699dabeca9498a1165472c9569634e86bc8d32b",
+      "tests": {
+        "debug": 13,
+        "release": 13,
+        "sanitizers": 29
+      }
+    },
+    "p02f_e": {
+      "sha": "7d6e45ecf432a475d6898f66a4abde2e4c0ec821",
+      "tests": {
+        "debug": 22,
+        "release": 22,
+        "sanitizers": 38
+      }
     }
   },
   "preserved_sdk_sha": "1e49c423b9913d4418217987a5ec3eddc0b8921f",
@@ -125,5 +141,23 @@
     "mictlan_memoria_propiedad_anidada_asan",
     "mictlan_memoria_elemento_repetido_asan"
   ],
-  "campaign": "P0.2-F"
+  "campaign": "P0.2-F",
+  "p02f_observations": {
+    "baseline_run": "https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43164505980",
+    "owner_run": "https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43166246005",
+    "baseline_core_sha": "651b27aa4adeffd3f116841fc9a24c4cd74cf842",
+    "owner_core_sha": "52317c21f2cb9b608796b4075bb6bf2c109ab327",
+    "observed_leaks_before_bytes": {
+      "control_numero": 0,
+      "lista_simple": 200,
+      "sustitucion": 264,
+      "alias": 528,
+      "core_listas_referencias": 528,
+      "sdk_suma_vectorial": 600,
+      "sdk_alias_vector_ffi": 528
+    },
+    "owner_result": "Los siete escenarios terminan sin fugas detectadas; SDK 32/32 con ASan, UBSan y LSan. El total sigue FAIL por coverage, clonar_ciclo y VM-PILA.",
+    "classification_policy": "Estas observaciones son historicas y no sustituyen la ejecucion: ningun fallo conocido se convierte en PASS.",
+    "pending": "F final y combinacion F+E se ejecutan nuevamente. Retencion hasta cerrar la VM, sin GC durante ejecucion."
+  }
 }

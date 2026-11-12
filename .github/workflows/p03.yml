@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        revision: [p02f_owner]
+        revision: [p02f_base, p02f, p02f_e]
         profile: [debug, release, sanitizers]
     steps:
       - name: SDK exacto de la propuesta
