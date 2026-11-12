@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bateria P0.3-2. Retornos: 0 aprobada, 1 fallo, 2 infraestructura, 3 configuracion.
+"""Bateria P0.3-3. Retornos: 0 aprobada, 1 fallo, 2 infraestructura, 3 configuracion.
 
 No compila ni modifica Core. Requiere builds separados y conserva resultados sin
 sobrescribir. CI prepara builds nuevos; uso local registra el arbol pendiente.
@@ -29,6 +29,8 @@ def classify_case(text, failed, skipped=False):
     if SANITIZER.search(text):
         return 'FAIL_SANITIZER'
     if re.search(r'"(?:ok"\s*:\s*false|status"\s*:\s*"FAIL")', text):
+        return 'FAIL_PROGRAM'
+    if re.search(r'P033_ASSERT|FAIL linea|Assertion .*failed', text) or (failed and 'No se pudo abrir el archivo:' in text):
         return 'FAIL_PROGRAM'
     if INFRA.search(text):
         return 'BLOCKED_INFRASTRUCTURE'
@@ -86,15 +88,16 @@ def is_elf(path):
 
 def main():
     parser = ConfigParser(description=__doc__)
-    for name in ['sdk-build', 'core-source', 'core-build', 'vm-build', 'verifiers-build', 'output']:
+    for name in ['sdk-build', 'core-source', 'core-build', 'vm-build', 'verifiers-build', 'integration-build', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
-    parser.add_argument('--profile', choices=['debug', 'sanitizers'], required=True)
+    parser.add_argument('--profile', choices=['debug', 'release', 'sanitizers'], required=True)
+    parser.add_argument('--core-revision', choices=['p02d', 'p02e'], default='p02e')
     parser.add_argument('--expected-sdk-sha', required=True)
     parser.add_argument('--allow-sdk-dirty', action='store_true', help='Solo revision local; CI exige arbol limpio')
     parser.add_argument('--cmake', default='cmake')
     parser.add_argument('--ctest', default='ctest')
     args = parser.parse_args()
-    for name in ['sdk_build', 'core_source', 'core_build', 'vm_build', 'verifiers_build', 'output']:
+    for name in ['sdk_build', 'core_source', 'core_build', 'vm_build', 'verifiers_build', 'integration_build', 'output']:
         setattr(args, name, getattr(args, name).resolve())
     for source in [SDK, args.core_source]:
         if args.output == source or source in args.output.parents:
@@ -103,22 +106,22 @@ def main():
         args.output.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
         parser.error('--output ya existe; no se sobrescribe evidencia')
-    report = {'schema': 1, 'stage': 'P0.3-2', 'started_utc': datetime.now(timezone.utc).isoformat(),
+    report = {'schema': 1, 'stage': 'P0.3-3', 'started_utc': datetime.now(timezone.utc).isoformat(),
               'profile': args.profile, 'commands': [], 'checks': {}, 'status': 'INVALID_CONFIG'}
     env = os.environ.copy()
 
-    def run(name, argv, timeout=120):
+    def run(name, argv, timeout=120, cwd=None):
         argv = list(map(str, argv))
         start = time.monotonic()
         stdout, stderr = args.output / (name + '.stdout.log'), args.output / (name + '.stderr.log')
         with stdout.open('wb') as out, stderr.open('wb') as err:
             try:
-                code = subprocess.run(argv, cwd=args.output, env=env, stdout=out, stderr=err, timeout=timeout).returncode
+                code = subprocess.run(argv, cwd=cwd or args.output, env=env, stdout=out, stderr=err, timeout=timeout).returncode
             except subprocess.TimeoutExpired:
                 code = 'TIMEOUT'
             except OSError as exc:
                 err.write(str(exc).encode()); code = 'EXEC_ERROR'
-        report['commands'].append({'name': name, 'argv': argv, 'returncode': code,
+        report['commands'].append({'name': name, 'argv': argv, 'cwd': str(cwd or args.output), 'returncode': code,
                                    'seconds': round(time.monotonic() - start, 3),
                                    'stdout': stdout.name, 'stderr': stderr.name})
         return code, stdout.read_text(errors='replace'), stderr.read_text(errors='replace')
@@ -128,10 +131,13 @@ def main():
         env = strict_environment(args.profile)
         lock = json.loads((SDK / 'ci/p03/contrato.json').read_text())
         report['contract'] = lock
+        revision = lock['core_revisions'][args.core_revision]
+        report['core_revision'] = args.core_revision
+        report['host_process'] = Path('/proc/self/status').read_text() if Path('/proc/self/status').exists() else 'unavailable'
         report['environment'] = {key: env.get(key) for key in ['ASAN_OPTIONS', 'UBSAN_OPTIONS', 'LSAN_OPTIONS', 'CPATH', 'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD']}
         sources = {'sdk': git_state(SDK, env), 'core': git_state(args.core_source, env)}
         report['sources'] = sources
-        if sources['core']['head'] != lock['core_sha'] or sources['core']['status']:
+        if sources['core']['head'] != revision['sha'] or sources['core']['status']:
             raise InvalidConfig('Core debe ser el SHA limpio fijado en contrato.json')
         if not re.fullmatch(r'[0-9a-f]{40}', args.expected_sdk_sha) or sources['sdk']['head'] != args.expected_sdk_sha:
             raise InvalidConfig('El SHA exacto del SDK no coincide con el solicitado')
@@ -143,19 +149,19 @@ def main():
         if platform.system() != 'Linux' or platform.machine() != 'x86_64':
             raise InvalidConfig('Este contrato ABI inicial solo cubre Linux x86_64')
         caches = {name: read_cache(build) for name, build in [
-            ('sdk', args.sdk_build), ('core', args.core_build), ('vm', args.vm_build), ('verifiers', args.verifiers_build)]}
-        source_paths = {'sdk': SDK, 'core': args.core_source, 'vm': SDK / 'tests/p03_vm', 'verifiers': SDK / 'tests/p03'}
+            ('sdk', args.sdk_build), ('core', args.core_build), ('vm', args.vm_build), ('verifiers', args.verifiers_build), ('integration', args.integration_build)]}
+        source_paths = {'sdk': SDK, 'core': args.core_source, 'vm': SDK / 'tests/p03_vm', 'verifiers': SDK / 'tests/p03', 'integration': SDK / 'tests/p03_integration'}
         library = args.core_build / 'liblatino.so'
-        inputs = [library, args.sdk_build / 'mictlan_ciencia_consola', args.vm_build / 'p03_vm_recuperacion']
+        inputs = [library, args.sdk_build / 'mictlan_ciencia_consola', args.vm_build / 'p03_vm_recuperacion', args.integration_build / 'p033_integracion', args.core_build / 'mictlan']
         inputs += list((args.core_source / 'include').glob('*.h'))
-        inputs += [build / 'CMakeCache.txt' for build in [args.sdk_build, args.core_build, args.vm_build, args.verifiers_build]]
+        inputs += [build / 'CMakeCache.txt' for build in [args.sdk_build, args.core_build, args.vm_build, args.verifiers_build, args.integration_build]]
         report['input_hashes'] = {str(path): sha256(path) for path in inputs}
         for name, cache in caches.items():
             if Path(cache['CMAKE_HOME_DIRECTORY']).resolve() != source_paths[name]:
                 raise InvalidConfig('CMake source incorrecto: ' + name)
-            if name != 'verifiers' and cache.get('CMAKE_BUILD_TYPE') != 'Debug':
-                raise InvalidConfig('Se requiere Debug, tambien con sanitizadores: ' + name)
-            if name in ['sdk', 'vm']:
+            if name != 'verifiers' and cache.get('CMAKE_BUILD_TYPE') != ('Release' if args.profile == 'release' else 'Debug'):
+                raise InvalidConfig('Tipo de compilacion incorrecto: ' + name)
+            if name in ['sdk', 'vm', 'integration']:
                 if (Path(cache.get('LATINO_LIBRARY', '')).resolve() != library or
                     Path(cache.get('LATINO_INCLUDE_DIR', '')).resolve() != args.core_source / 'include'):
                     raise InvalidConfig('Biblioteca/cabeceras incoherentes: ' + name)
@@ -175,7 +181,7 @@ def main():
         missing = set(lock['required_exports']) - exports
         if rc or missing: raise InvalidConfig('Exportaciones ausentes: ' + ', '.join(sorted(missing)))
         consumers = [path for path in sorted(args.sdk_build.iterdir()) if is_elf(path)]
-        consumers.append(args.vm_build / 'p03_vm_recuperacion')
+        consumers.extend([args.vm_build / 'p03_vm_recuperacion', args.integration_build / 'p033_integracion'])
         inputs.extend(path for path in consumers if path not in inputs)
         report['input_hashes'].update({str(path): sha256(path) for path in consumers})
         imports = set()
@@ -205,21 +211,32 @@ def main():
             raise InvalidConfig('El layout publico no coincide con el contrato revisado')
         report['checks']['contract'] = {'status': 'PASS'}
         if args.profile == 'sanitizers':
-            for name, binary in [('core', library), ('sdk', inputs[1]), ('vm', inputs[2])]:
+            for name, binary in [('core', library), ('sdk', inputs[1]), ('vm', inputs[2]), ('integration', inputs[3]), ('cli', inputs[4])]:
                 rc, output, _ = run('instrumentation-' + name, ['nm', '-D', binary])
                 if rc or not all(marker in output for marker in ['__asan_', '__ubsan_']):
                     raise InvalidConfig('Falta instrumentacion ASan/UBSan: ' + name)
-            control = args.output / 'sanitizer_control'
-            if run('sanitizer-control-build', [caches['core']['CMAKE_C_COMPILER'], '-g', '-O0',
-                '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer',
-                SDK / 'ci/p03/sanitizer_control.c', '-o', control])[0]:
-                raise InvalidConfig('No se pudo compilar el control positivo ASan/UBSan')
-            asan = run('asan-positive', [control, 'asan'])
-            ubsan = run('ubsan-positive', [control, 'ubsan'])
+            from verificar_errores import classify_lsan
+            controls = {}
+            for kind, flag in [('asan', 'address'), ('ubsan', 'undefined')]:
+                control = args.output / (kind + '_control')
+                if run(kind + '-control-build', [caches['core']['CMAKE_C_COMPILER'], '-g', '-O0',
+                    '-fsanitize=' + flag, '-fno-sanitize-recover=all', '-fno-omit-frame-pointer',
+                    SDK / 'ci/p03/sanitizer_control.c', '-o', control])[0]:
+                    raise InvalidConfig('No se pudo compilar el control ' + kind)
+                controls[kind] = run(kind + '-positive', [control, kind])
+            asan, ubsan = controls['asan'], controls['ubsan']
             positive = (asan[0] == 86 and 'ERROR: AddressSanitizer: heap-buffer-overflow' in asan[1] + asan[2] and
                         ubsan[0] == 86 and 'runtime error: signed integer overflow' in ubsan[1] + ubsan[2])
-            report['checks']['sanitizer_runtime'] = {'status': 'PASS' if positive else 'FAIL_PREFLIGHT',
-                                                      'asan_returncode': asan[0], 'ubsan_returncode': ubsan[0]}
+            report['checks']['sanitizer_runtime'] = {'status': 'PASS' if positive else 'FAIL_PREFLIGHT'}
+            standalone = args.output / 'lsan_standalone'
+            if run('lsan-standalone-build', [caches['core']['CMAKE_C_COMPILER'], '-g', '-O0', '-fsanitize=leak',
+                SDK / 'tests/p03/lsan_control.c', '-o', standalone])[0]:
+                raise InvalidConfig('No se pudo compilar el control LSan independiente')
+            samples = []
+            for name, command in [('clean', [standalone]), ('leak', [standalone, 'leak'])]:
+                rc, out, err = run('lsan-standalone-' + name, command)
+                samples.append({'returncode': rc, 'streams': [out, err]})
+            report['checks']['lsan_standalone'] = {'status': classify_lsan(*samples)}
         rc, _, _ = run('direct-errors', [sys.executable, SDK / 'scripts/p03/verificar_errores.py',
             '--sdk-build', args.sdk_build, '--core-source', args.core_source, '--core-build', args.core_build,
             '--profile', args.profile, '--output', args.output / 'direct-errors', '--cmake', args.cmake])
@@ -227,7 +244,7 @@ def main():
         report['checks']['direct_errors'] = {'status': direct['status'], 'returncode': rc, 'preflight': direct['preflight']}
         if rc != direct['exitcode']: raise InvalidConfig('Retorno incoherente del verificador directo')
         if rc == 3: raise InvalidConfig('Verificador directo rechazo la configuracion: ' + direct.get('error', 'sin detalle'))
-        for name, build in [('verifiers', args.verifiers_build), ('sdk', args.sdk_build), ('vm', args.vm_build)]:
+        for name, build in [('verifiers', args.verifiers_build), ('sdk', args.sdk_build), ('vm', args.vm_build), ('integration', args.integration_build)]:
             rc, listing, _ = run('list-' + name, [args.ctest, '--test-dir', build, '--show-only=json-v1'])
             tests = json.loads(listing)['tests'] if rc == 0 else []
             if len(tests) != lock['test_counts'][name]: raise InvalidConfig('Inventario CTest inesperado: ' + name)
@@ -244,6 +261,14 @@ def main():
             result_names = {row['name'] for row in report['checks'][name].get('cases', [])}
             if result_names != {test['name'] for test in tests}:
                 report['checks'][name]['status'] = 'FAIL_TEST_INVENTORY'
+        from regresiones_core import run_core, run_modular, run_extensions
+        report['checks']['core'] = run_core(run, args.ctest, args.core_source, args.core_build, args.output,
+            revision['tests'][args.profile], classify_case, aggregate, set(lock['known_core_failures']))
+        report['checks']['extensions'] = run_extensions(run, args.core_source, args.core_build, args.output,
+            classify_case, aggregate)
+        if args.profile == 'sanitizers':
+            report['checks']['modular'] = run_modular(run, args.core_source, args.core_build, args.output,
+                classify_case, aggregate)
         report['inputs_unchanged'] = (report['input_hashes'] == {str(path): sha256(path) for path in inputs} and
             sources == {'sdk': git_state(SDK, env), 'core': git_state(args.core_source, env)})
         if not report['inputs_unchanged']: raise InvalidConfig('Fuentes o binarios cambiaron durante la ejecucion')
@@ -254,7 +279,7 @@ def main():
         report['exitcode'] = exitcode
         report['finished_utc'] = datetime.now(timezone.utc).isoformat()
         (args.output / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n')
-        suite = ET.Element('testsuite', name='P0.3-2-summary')
+        suite = ET.Element('testsuite', name='P0.3-3-summary')
         for name, data in {**report['checks'], 'overall': {'status': report['status']}}.items():
             case = ET.SubElement(suite, 'testcase', name=name)
             if not data['status'].startswith('PASS'):

@@ -117,7 +117,7 @@ def main():
     parser.add_argument('--sdk-build', required=True, type=Path)
     parser.add_argument('--core-source', required=True, type=Path)
     parser.add_argument('--core-build', required=True, type=Path)
-    parser.add_argument('--profile', choices=['debug', 'sanitizers'], required=True)
+    parser.add_argument('--profile', choices=['debug', 'release', 'sanitizers'], required=True)
     parser.add_argument('--output', required=True, type=Path, help='Directorio nuevo, fuera de las fuentes')
     parser.add_argument('--cmake', default='cmake')
     args = parser.parse_args()
@@ -207,7 +207,7 @@ def main():
                 raise InvalidConfig('No se pudo compilar el control independiente de LSan')
             report['preflight'] = classify_lsan(run('preflight-clean', [control]), run('preflight-leak', [control, 'leak']))
         else:
-            report['preflight'] = 'NOT_APPLICABLE_DEBUG'
+            report['preflight'] = 'NOT_APPLICABLE_FUNCTIONAL'
 
         for case in ['tipo', 'rango']:
             logs = args.output / case
