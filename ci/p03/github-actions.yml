@@ -1,0 +1,102 @@
+# PROPUESTA INACTIVA. Solo tras revision: .github/workflows/p03.yml.
+# El despacho manual necesita que el workflow exista en la rama predeterminada.
+name: P03 contrato Core-SDK
+"on":
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contrato:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, sanitizers]
+    steps:
+      - name: SDK exacto
+        id: sdk
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 verificado
+        with:
+          ref: ${{ github.sha }}
+          path: sdk
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Leer revisiones fijadas
+        id: contract
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, re
+          lock = json.load(open('sdk/ci/p03/contrato.json'))
+          for key in ('core_sha', 'raylib_sha'):
+              assert re.fullmatch(r'[0-9a-f]{40}', lock[key])
+              print(key + '=' + lock[key])
+          PY
+      - name: Core exacto
+        id: core
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: TuxMatic99/Mictlan-Core
+          ref: ${{ steps.contract.outputs.core_sha }}
+          path: core
+          persist-credentials: false
+          token: ${{ secrets.MICTLAN_CORE_READ_TOKEN || github.token }}
+      - name: Raylib 5.5 exacto
+        id: raylib
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: raysan5/raylib
+          ref: ${{ steps.contract.outputs.raylib_sha }}
+          path: raylib
+          persist-credentials: false
+      - name: Dependencias de compilacion
+        id: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev
+      - name: Compilar y comprobar
+        id: verify
+        env:
+          P03_PROFILE: ${{ matrix.profile }}
+          P03_SDK_SHA: ${{ github.sha }}
+        run: |
+          bash sdk/scripts/p03/preparar_ci.sh "$P03_PROFILE" "$GITHUB_WORKSPACE/core" \
+            "$GITHUB_WORKSPACE/raylib" "$RUNNER_TEMP/p03-$P03_PROFILE" "$P03_SDK_SHA"
+      - name: Registrar tambien bloqueos de preparacion
+        if: ${{ always() }}
+        env:
+          P03_STEPS: ${{ toJSON(steps) }}
+          P03_PROFILE: ${{ matrix.profile }}
+          P03_SDK_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          work = pathlib.Path(os.environ['RUNNER_TEMP']) / ('p03-' + os.environ['P03_PROFILE'])
+          work.mkdir(parents=True, exist_ok=True)
+          steps = json.loads(os.environ['P03_STEPS'])
+          report = work / 'evidence/report.json'
+          if report.exists():
+              status = json.loads(report.read_text())['status']
+          elif steps.get('contract', {}).get('outcome') == 'failure':
+              status = 'INVALID_CONFIG'
+          elif any(steps.get(name, {}).get('outcome') != 'success' for name in ('sdk', 'core', 'raylib', 'deps')):
+              status = 'BLOCKED_INFRASTRUCTURE'
+          else:
+              status = 'FAIL_PREPARATION'
+          (work / 'workflow.json').write_text(json.dumps({'status': status, 'sdk_sha': os.environ['P03_SDK_SHA'], 'steps': steps}, indent=2) + '\n')
+          PY
+      - name: Conservar evidencia incluso al fallar
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4 verificado
+        with:
+          name: p03-${{ matrix.profile }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/preparation.*
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/workflow.json
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/packages.txt
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/evidence/
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/**/CMakeCache.txt
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/**/compile_commands.json
+            ${{ runner.temp }}/p03-${{ matrix.profile }}/**/Testing/Temporary/*.log

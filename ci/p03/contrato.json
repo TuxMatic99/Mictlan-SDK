@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "core_repository": "TuxMatic99/Mictlan-Core",
+  "core_sha": "0b4f8df58935e425640824406406d95c9dc3281f",
+  "baseline_core_sha": "e23a134b199687399f28840c73bfe7b8073cf444",
+  "sdk_base_sha": "65c75c8ba1f79c9af91d8634b1edd03bf25f1747",
+  "raylib_repository": "raysan5/raylib",
+  "raylib_sha": "c1ab645ca298a2801097931d1079b10ff7eb9df8",
+  "test_counts": {"verifiers": 65, "sdk": 32, "vm": 4},
+  "required_exports": ["latC_crear_mv", "latC_destruir_mv", "latC_llamar_funcion", "latC_analizar", "latLR_crear", "latLR_agregar", "latLR_obtener", "latLR_longitud", "latLR_eliminar", "latLR_reemplazar", "latLR_destruir"],
+  "abi_linux_x86_64": {
+    "pointer_size": 8,
+    "lat_objeto_size": 64,
+    "lat_mv_size": 5688,
+    "LAT_ERRRUN": 2,
+    "offsets": {"ptrctx": 2104, "ptrpila": 2108, "numejec": 2120, "contexto_actual": 2088, "error": 2168, "funciones_propias": 5664, "modulos_propios": 5672, "constantes_propias": 5680}
+  },
+  "known_failures": [
+    {"id": "VM-NUMEJEC", "tests": ["p03_vm_directa_200", "p03_vm_anidada_200"], "status": "functional_pass_memory_pending", "note": "Falla en e23a134. En 0b4f8df ambas secuencias completan 1000 ciclos Debug sin acumular contadores. No certifica memoria ni otros caminos de ejecucion."},
+    {"id": "VM-PILA", "tests": ["p03_vm_pila_200"], "status": "open", "note": "Error de tipo en el ultimo argumento: comprobar que longjmp descarta los argumentos pendientes sin reparar la VM desde la prueba."},
+    {"id": "SCIENCE-MEMORY", "tests": ["mictlan_ciencia_suma_vectorial_integracion", "mictlan_ciencia_suma_error_tipo", "mictlan_ciencia_suma_error_rango", "mictlan_ciencia_alias_vector_ffi"], "status": "historical_pending_recheck", "note": "0b4f8df incorpora P0.2-A/B/C. LSan bloqueado por ptrace impide certificar fugas aqui. No aceptar diagnosticos de sanitizadores ni omitir estas pruebas."}
+  ]
+}
