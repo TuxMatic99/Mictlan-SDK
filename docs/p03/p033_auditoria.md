@@ -32,6 +32,9 @@ Entorno local: Debian 13, GCC 14.2.0 y CMake/CTest 3.31.10. Se compilaron las se
 | Clasificadores anteriores | 21/21 | 21/21 |
 | Nuevas regresiones del automatizador | 9/9 | 9/9 |
 
+Esta tabla conserva la primera validación local. Después se añadieron otras dos
+regresiones del clasificador (11/11) al revisar las salidas reales de GitHub.
+
 Los cuatro contratos nuevos comprueban identidad, elementos repetidos gestionados mediante recursos, reemplazos y alias de listas producidas por la FFI real. Los tres casos de recursos repiten 200 ciclos y verifican referencias, destrucciones y saldo interno de memoria. El caso FFI comprueba valores y la persistencia del alias después de una reasignación. Cierra la VM normalmente, sin introducir liberaciones manuales destinadas a ocultar fugas.
 
 En este entorno local, los controles LSan limpio y con fuga, tanto integrados como autónomos, están bloqueados por `ptrace`. Por tanto, las pruebas instrumentadas afectadas no se consideran aprobadas. ASan y UBSan sí detectan sus controles positivos. Los dos UAF conocidos de listas anidadas y elementos repetidos permanecen visibles. `coverage` es un fallo de configuración, incluso cuando LSan impide vaciar el mensaje de stdout.
@@ -40,13 +43,36 @@ Se detectaron y corrigieron dos problemas en la automatización: la clasificaci�
 
 Raylib desde fuentes no se pudo configurar localmente por falta de cabeceras X11. La matriz local utilizó la biblioteca Raylib 5.5 previamente disponible, con sus rutas registradas. El workflow instala las dependencias gráficas de desarrollo y compila el SHA fijado desde fuentes. No se presenta la ejecución local como prueba de esa fase de preparación de GitHub.
 
+## Primera ejecución real de GitHub Actions
+
+La ejecución [43158783575](https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43158783575)
+compiló las seis combinaciones desde fuentes, incluido Raylib, con SDK
+`4f1c7ad980c46473a034c9b9f303ec2811247067`, Ubuntu 24.04 y GCC 13.3.0.
+Los controles de ASan, UBSan y LSan (integrado y autónomo) pasaron en D y E.
+No hubo bloqueo de LSan. Las pruebas directas de tipo y rango pasaron sin
+informes de sanitizadores. El SDK pasó 32/32 en Debug y Release, y 30/32 con
+sanitizadores: suma vectorial fugó 600 bytes y alias FFI, 528 bytes.
+Los tres contratos de recursos pasaron; el nuevo caso de alias FFI expuso
+otros 528 bytes en su ejecución independiente. Core mantuvo la fuga de
+528 bytes, los dos UAF conocidos y el fallo de configuración `coverage`.
+La VM pasó 4/4 con E en los tres perfiles; con D falló la recuperación de
+los tres argumentos. Los doce scripts modulares pasaron con sanitizadores.
+
+La revisión de las trazas también identificó tres falsos positivos del
+clasificador: confundía la ruta `p03-p02e-sanitizers` mostrada por los errores
+esperados de extensión con un informe de sanitizador. Se corrigió el
+reconocimiento de diagnósticos y se añadieron pruebas para rutas legítimas y
+salidas contaminadas. Los registros de esta primera ejecución permanecen
+intactos; la entrega final enlaza la repetición del commit corregido. Esta
+corrección no modifica ni oculta las fugas o los UAF anteriores.
+
 ## Fallos y trabajo separado
 
 | Situación | Clasificación y siguiente paso |
 | --- | --- |
 | UAF en listas anidadas y elementos repetidos | Alta gravedad; responsabilidad del frente de propiedad P0.2-D2. No se tocan destructores. |
 | Recuperación de pila en D | Defecto reproducido; E lo corrige funcionalmente. Mantener visible la comparación. |
-| Fugas de las listas FFI y otras rutas | Pendientes de los resultados LSan reales de CI; no dar por resueltas por Debug. |
+| Fugas de las listas FFI y otras rutas | Confirmadas por LSan en GitHub: 600 bytes en suma vectorial y 528 en alias; coordinar con P0.2-D2. |
 | `coverage` apunta a un programa ausente | Fallo de configuración heredado, conservado sin modificar Core. |
 | Constructores y propiedad general de temporales | Fuera de la cobertura de esta entrega; no deducir seguridad global de las pruebas aprobadas. |
 | Bloqueo LSan local | `BLOCKED_INFRASTRUCTURE`; requiere un entorno donde el control limpio y el positivo puedan completarse. |

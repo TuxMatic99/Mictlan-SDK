@@ -9,10 +9,38 @@ import unittest
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts/p03'))
 from ejecutar_bateria import aggregate, classify_case
-from regresiones_core import validate_inventory, run_core, run_modular
+from regresiones_core import validate_inventory, run_core, run_modular, run_extensions
 
 
 class CoreResults(unittest.TestCase):
+    def test_extension_paths_are_not_sanitizer_reports(self):
+        with tempfile.TemporaryDirectory(prefix='p03-sanitizers-') as tmp:
+            root = Path(tmp)
+            (root / 'ejemplos').mkdir()
+            (root / 'ejemplos/hola_mictlan.lat').write_text('escribir(42)\n')
+            def run(name, command, **kwargs):
+                path = command[-1]
+                if path.name == 'missing.mict':
+                    return 1, 'No se pudo abrir el archivo: ' + str(path), ''
+                if path.suffix not in ['.mict', '.lat']:
+                    return 1, "El archivo '" + str(path) + "' debe tener extension .mict o .lat", ''
+                return 0, 'El resultado es: 42', ''
+            result = run_extensions(run, root, root, root, classify_case, aggregate)
+            self.assertEqual(result['status'], 'PASS')
+            self.assertEqual(len(result['cases']), 5)
+
+    def test_path_with_expected_error_cannot_hide_real_report(self):
+        prefix = "El archivo '/tmp/p03-sanitizers/hello.txt' EXPECTED_CLI_DIAGNOSTIC\n"
+        for message in ['ERROR: AddressSanitizer: heap-use-after-free',
+                        'runtime error: signed integer overflow',
+                        'LeakSanitizer: detected memory leaks',
+                        'LeakSanitizer: unexpected diagnostic',
+                        'Sanitizer CHECK failed: invalid size']:
+            with self.subTest(message=message):
+                self.assertEqual(classify_case(prefix + message, False), 'FAIL_SANITIZER')
+        self.assertEqual(classify_case(prefix + 'LeakSanitizer does not work under ptrace', True),
+                         'BLOCKED_INFRASTRUCTURE')
+
     def test_program_and_ptrace(self):
         self.assertEqual(classify_case('No se pudo abrir el archivo: ejemplos/coverage.lat\n'
             'LeakSanitizer does not work under ptrace', True), 'FAIL_PROGRAM')

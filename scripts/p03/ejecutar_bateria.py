@@ -34,7 +34,9 @@ def classify_case(text, failed, skipped=False):
         return 'FAIL_PROGRAM'
     if INFRA.search(text):
         return 'BLOCKED_INFRASTRUCTURE'
-    if re.search(r'sanitizer', text, re.I):
+    # Un nombre de directorio como p02e-sanitizers no es un informe.
+    # Conservar el rechazo de diagnosticos desconocidos del runtime.
+    if re.search(r'\bLeakSanitizer\b|\bSanitizer\s*(?::|CHECK\b)', text, re.I):
         return 'FAIL_SANITIZER'
     if skipped:
         return 'FAIL_NOT_RUN'
