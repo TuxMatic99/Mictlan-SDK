@@ -100,6 +100,14 @@
         "release": 11,
         "sanitizers": 22
       }
+    },
+    "p02f_base": {
+      "sha": "651b27aa4adeffd3f116841fc9a24c4cd74cf842",
+      "tests": {
+        "debug": 12,
+        "release": 12,
+        "sanitizers": 28
+      }
     }
   },
   "preserved_sdk_sha": "1e49c423b9913d4418217987a5ec3eddc0b8921f",
@@ -108,5 +116,6 @@
     "mictlan_memoria_listas_referencias",
     "mictlan_memoria_propiedad_anidada_asan",
     "mictlan_memoria_elemento_repetido_asan"
-  ]
+  ],
+  "campaign": "P0.2-F"
 }

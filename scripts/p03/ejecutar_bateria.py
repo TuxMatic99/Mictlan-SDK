@@ -93,7 +93,7 @@ def main():
     for name in ['sdk-build', 'core-source', 'core-build', 'vm-build', 'verifiers-build', 'integration-build', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--profile', choices=['debug', 'release', 'sanitizers'], required=True)
-    parser.add_argument('--core-revision', choices=['p02d', 'p02e'], default='p02e')
+    parser.add_argument('--core-revision', default='p02e', help='Clave exacta de core_revisions en contrato.json')
     parser.add_argument('--expected-sdk-sha', required=True)
     parser.add_argument('--allow-sdk-dirty', action='store_true', help='Solo revision local; CI exige arbol limpio')
     parser.add_argument('--cmake', default='cmake')
@@ -133,6 +133,7 @@ def main():
         env = strict_environment(args.profile)
         lock = json.loads((SDK / 'ci/p03/contrato.json').read_text())
         report['contract'] = lock
+        report['campaign'] = lock.get('campaign', 'P0.3-3')
         revision = lock['core_revisions'][args.core_revision]
         report['core_revision'] = args.core_revision
         report['host_process'] = Path('/proc/self/status').read_text() if Path('/proc/self/status').exists() else 'unavailable'
