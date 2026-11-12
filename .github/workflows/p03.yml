@@ -1,0 +1,112 @@
+name: P03 Core-SDK
+"on":
+  pull_request:
+    branches: [desarrollo/mictlan-alpha]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: p03-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  contrato:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        revision: [p02d, p02e]
+        profile: [debug, release, sanitizers]
+    steps:
+      - name: SDK exacto de la propuesta
+        id: sdk
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: sdk
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolver contrato fijado
+        id: contract
+        env:
+          REVISION: ${{ matrix.revision }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, re
+          lock = json.load(open('sdk/ci/p03/contrato.json'))
+          values = {'core_sha': lock['core_revisions'][os.environ['REVISION']]['sha'],
+                    'raylib_sha': lock['raylib_sha']}
+          for key, value in values.items():
+              assert re.fullmatch(r'[0-9a-f]{40}', value)
+              print(key + '=' + value)
+          PY
+      - name: Core exacto, sin cambios ni fusiones
+        id: core
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: TuxMatic99/Mictlan-Core
+          ref: ${{ steps.contract.outputs.core_sha }}
+          path: core
+          persist-credentials: false
+          token: ${{ secrets.MICTLAN_CORE_READ_TOKEN || github.token }}
+      - name: Raylib 5.5 fijado
+        id: raylib
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: raysan5/raylib
+          ref: ${{ steps.contract.outputs.raylib_sha }}
+          path: raylib
+          persist-credentials: false
+      - name: Dependencias
+        id: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev
+      - name: Compilar y ejecutar sin depurador ni trazador
+        id: verify
+        env:
+          PROFILE: ${{ matrix.profile }}
+          REVISION: ${{ matrix.revision }}
+          SDK_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          bash sdk/scripts/p03/preparar_ci.sh "$PROFILE" "$GITHUB_WORKSPACE/core" \
+            "$GITHUB_WORKSPACE/raylib" "$RUNNER_TEMP/p03-$REVISION-$PROFILE" "$SDK_SHA" "$REVISION"
+      - name: Conservar tambien fallos de preparacion
+        if: ${{ always() }}
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          PROFILE: ${{ matrix.profile }}
+          REVISION: ${{ matrix.revision }}
+          SDK_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          work = pathlib.Path(os.environ['RUNNER_TEMP']) / ('p03-' + os.environ['REVISION'] + '-' + os.environ['PROFILE'])
+          work.mkdir(parents=True, exist_ok=True)
+          steps = json.loads(os.environ['STEPS'])
+          path = work / 'evidence/report.json'
+          if path.exists(): status = json.loads(path.read_text())['status']
+          elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'raylib', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
+          else: status = 'FAIL_PREPARATION'
+          record = {'status': status, 'sdk_sha': os.environ['SDK_SHA'], 'steps': steps}
+          (work / 'workflow.json').write_text(json.dumps(record, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('Core ' + os.environ['REVISION'] + ', ' + os.environ['PROFILE'] + ': **' + status + '**\n')
+          PY
+      - name: Informes, trazas y JUnit incluso al fallar
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: p03-${{ matrix.revision }}-${{ matrix.profile }}-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/preparation.*
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/workflow.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/packages.txt
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/evidence/
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/CMakeCache.txt
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/compile_commands.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/Testing/Temporary/*.log
