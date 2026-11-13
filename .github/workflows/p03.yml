@@ -143,6 +143,7 @@ jobs:
           PROFILE: ${{ matrix.profile }}
           WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
         run: |
+          set -o pipefail
           bash sdk/scripts/p1/verificar.sh "$PROFILE" "$GITHUB_WORKSPACE/core" "$GITHUB_WORKSPACE/lab" \
             "$GITHUB_WORKSPACE/raylib" "$WORK" 2>&1 | tee "$WORK/p1.log"
       - name: Conservar tambien fallos de preparacion
@@ -188,6 +189,8 @@ jobs:
                   f.write('Ventana X11 de referencia: **' + gui + '**\n')
                   record['ventana'] = gui
                   (work / 'workflow.json').write_text(json.dumps(record, indent=2))
+          if status != 'PASS':
+              raise SystemExit(status)
           PY
       - name: Informes, trazas y JUnit incluso al fallar
         if: ${{ always() }}

@@ -14,8 +14,10 @@ sdk=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 mkdir -- "$salida"
 raylib=$(sed -n 's/^raylib_DIR:[^=]*=//p' "$actual/CMakeCache.txt")
 test -n "$raylib"
+prefijo=$(sed -n 's/^CMAKE_PREFIX_PATH:[^=]*=//p' "$actual/CMakeCache.txt")
 cmake -S "$anterior" -B "$salida/sdk" -DCMAKE_BUILD_TYPE=Release \
-    "-DLATINO_INCLUDE_DIR=$core/include" "-DLATINO_LIBRARY=$biblioteca" "-Draylib_DIR=$raylib"
+    "-DLATINO_INCLUDE_DIR=$core/include" "-DLATINO_LIBRARY=$biblioteca" \
+    "-Draylib_DIR=$raylib" "-DCMAKE_PREFIX_PATH=$prefijo"
 cmake --build "$salida/sdk" --parallel 2 --target host_ui host_ui_para_pruebas
 python3 - "$anterior/src/ui/host_ui.c" "$salida/host_anterior.c" <<'PY'
 import pathlib, sys
