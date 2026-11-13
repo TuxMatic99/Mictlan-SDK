@@ -94,7 +94,18 @@ def tecla(key):
 
 def escribir(texto):
     for signo in texto:
-        tecla(signo)
+        tecla("space" if signo == " " else f"U{ord(signo):04X}" if ord(signo) > 127 else signo)
+
+
+def escribir_espanol(texto):
+    # El servidor Xvfb es privado. Dar teclas propias a estas letras evita
+    # depender del layout del runner o reutilizar teclas de xdotool.
+    codigos = {"í": "240", "Ñ": "241", "á": "242", "ñ": "243", "ó": "244"}
+    for signo, codigo in codigos.items():
+        x("xmodmap", "-e", f"keycode {codigo} = U{ord(signo):04X} U{ord(signo):04X}")
+    time.sleep(0.30)
+    for signo in texto:
+        tecla(codigos.get(signo, "space" if signo == " " else signo))
 
 
 def pulsar(wid, xpix, ypix):
@@ -124,12 +135,16 @@ def boton(wid, columna):
 
 
 @contextlib.contextmanager
-def ejecutar(nombre, binario, archivo=None):
+def ejecutar(nombre, binario, archivo=None, gc=False):
     trabajo = out / nombre
     trabajo.mkdir()
     stdout, stderr = trabajo / "stdout.log", trabajo / "stderr.log"
     with stdout.open("wb") as o, stderr.open("wb") as e:
-        argv = [binario] if archivo is None else [binario, archivo]
+        argv = [binario]
+        if gc:
+            argv.append("--gc-experimental")
+        if archivo is not None:
+            argv.extend(["--", archivo] if gc else [archivo])
         proc = subprocess.Popen(argv, cwd=trabajo, env=env, stdout=o, stderr=e)
         proc.maps = trabajo / "maps.log"
         try:
@@ -191,14 +206,16 @@ def captura(wid, destino):
 
 def sesion(path):
     try:
-        return path.read_text().splitlines()
+        return path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
+        return None
+    except UnicodeDecodeError:
         return None
 
 
-def vectorlab():
+def vectorlab(gc=False):
     principal = root / "VectorLab/principal.mict"
-    with ejecutar("vectorlab", host, principal) as (proc, dir):
+    with ejecutar("vectorlab-gc" if gc else "vectorlab", host, principal, gc=gc) as (proc, dir):
         wid = ventana(proc, "^VectorLab Mictlán$")
         assert geometria(wid) == (1080, 720), geometria(wid)
         imagenes = [captura(wid, dir / "inicio.png")] if a.capturas else []
@@ -229,10 +246,53 @@ def vectorlab():
         cerrar(wid)
         r = resultado(proc, dir)
         m = r["metricas"]
+        if gc:
+            assert m["gc_estado"] == 0 and m["gc_recolecciones"] > 0, m
         assert m["eventos_entregados"] >= 6 and m["lineas"] >= 22, m
         assert (m["ancho"], m["alto"]) == (1200, 760), m
         r["capturas"] = imagenes
         r["sesion"] = sesion(datos)
+        return r
+
+
+def registro():
+    principal = root / "Registro/principal.mict"
+    with ejecutar("registro", host, principal, gc=True) as (proc, dir):
+        wid = ventana(proc, "^Registro Mictlán$")
+        ancho, alto = geometria(wid)
+        assert (ancho, alto) == (820, 520), (ancho, alto)
+        # La raíz tiene seis hijos con el mismo peso y 12 px de separación.
+        alto_fila = (alto - 110 - 5 * 12) / 6
+        y_acciones = round(70 + 4 * (alto_fila + 12) + alto_fila / 2)
+        ancho_boton = (ancho - 48 - 2 * 12) / 3
+        guardar = round(24 + ancho_boton / 2)
+        recuperar = ancho // 2
+        escribir_espanol("María Ñáñez")
+        tecla("Tab")
+        escribir_espanol("Medición 5")
+        tecla("Return")
+        ruta = dir / "registro-v1.txt"
+        esperado = ["Registro-v1", "María Ñáñez", "Medición 5"]
+        hasta(lambda: sesion(ruta) == esperado, "El guardado real no preservó UTF-8")
+        tecla("BackSpace")
+        pulsar(wid, recuperar, y_acciones)
+        pulsar(wid, guardar, y_acciones)
+        assert sesion(ruta) == esperado, "Recuperar no restauró lo guardado"
+
+        # Un nombre válido y una nota dañada deben rechazarse juntos.
+        corrupto = b"Registro-v1\nIntruso\ninv\xc0\xaf\n"
+        ruta.write_bytes(corrupto)
+        pulsar(wid, recuperar, y_acciones)
+        assert ruta.read_bytes() == corrupto, "Recuperar cambió el archivo"
+        pulsar(wid, guardar, y_acciones)
+        hasta(lambda: sesion(ruta) == esperado, "La carga dañada cambió el formulario")
+        x("xdotool", "windowsize", "--sync", wid, "920", "580")
+        hasta(lambda: geometria(wid) == (920, 580), "No se redimensionó Registro")
+        cerrar(wid)
+        r = resultado(proc, dir)
+        m = r["metricas"]
+        assert m["gc_estado"] == 0 and m["gc_recolecciones"] > 0 and m["eventos_entregados"] >= 5, m
+        r["sesion"] = sesion(ruta)
         return r
 
 
@@ -288,7 +348,7 @@ def carga(nombre, binario):
 
 
 try:
-    requisitos = ["xdotool", "wmctrl"] + (["import", "convert"] if a.capturas else [])
+    requisitos = ["xdotool", "wmctrl", "xmodmap"] + (["import", "convert"] if a.capturas else [])
     if not env.get("DISPLAY") or any(not shutil.which(cmd) for cmd in requisitos):
         report["status"] = "BLOCKED_INFRASTRUCTURE"
         raise RuntimeError("Falta servidor X11 o alguna herramienta de la prueba")
@@ -298,6 +358,9 @@ try:
         report["status"] = "BLOCKED_INFRASTRUCTURE"
         raise
     casos = {"contador": general, "vectorlab": vectorlab, "error_callback": error_callback}
+    if (root / "Registro/principal.mict").is_file():
+        casos["vectorlab_gc"] = lambda: vectorlab(gc=True)
+        casos["registro"] = registro
     if a.control_raylib:
         casos = {"raylib_control": control_raylib, **casos}
     if a.anterior:

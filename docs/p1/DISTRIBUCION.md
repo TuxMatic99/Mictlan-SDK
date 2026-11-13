@@ -14,6 +14,7 @@ sha256sum -c SHA256SUMS
 ./bin/mictlan --version
 ./bin/mictlan-ui --version
 ./bin/probar-vectorlab
+./bin/probar-registro
 cd VectorLab
 ../bin/mictlan-ui -- principal.mict
 ```
@@ -21,6 +22,8 @@ cd VectorLab
 Edita Ax, Ay, Bx o By. Pulsa Enter o Calcular. Tab y Mayús+Tab cambian el foco. Guardar y Cargar usan `vectorlab-v1.txt` en la carpeta de trabajo. La guía del formato está en `VectorLab/README.md`. Conserva ese archivo si deseas preservar tu sesión al retirar la carpeta extraída.
 
 El intérprete `bin/mictlan` funciona en terminal sin Raylib ni un servidor X. Ejecuta `bin/mictlan share/mictlan/ejemplos/hola_mictlan.mict` desde la raíz. Para otra aplicación abre `share/mictlan/ejemplos/contador.mict` con `bin/mictlan-ui`. Cambia sus controles y acciones en el archivo. El anfitrión permanece genérico.
+
+Desde la raíz del paquete, entra en `Registro` y ejecuta `../bin/mictlan-ui -- principal.mict`. Prueba guardar y recuperar «María Ñáñez» y una nota con acentos. El archivo se escribe en la carpeta actual. Abre esa misma carpeta en VS Code para encontrar sus tareas. Activa `--gc-experimental` únicamente para comparar y revisar memoria. [Contrato y métricas](MEMORIA-P11.md).
 
 ## VS Code
 

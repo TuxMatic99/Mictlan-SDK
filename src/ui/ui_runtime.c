@@ -124,11 +124,19 @@ const char *lui_texto(const UIRuntime *ui, int id) {
     size_t i=indice_id(ui,id);
     return i!=UI_NODO_NULO ? ui->textos[i] : NULL;
 }
+static bool texto_valido(const UIRuntime *ui, size_t i, const char *texto) {
+    return i != UI_NODO_NULO && ui_utf8_validar(texto, NULL) &&
+           strlen(texto) < LUI_TEXTO_MAX &&
+           (ui->tipos[i] != UI_WIDGET_CAMPO_TEXTO || campo_valido(texto));
+}
+bool lui_texto_valido(const UIRuntime *ui, int id, const char *texto) {
+    return texto_valido(ui, indice_id(ui, id), texto);
+}
 bool lui_establecer_texto(UIRuntime *ui, int id, const char *texto) {
-    size_t i=indice_id(ui,id);
-    if (i==UI_NODO_NULO || !ui_utf8_validar(texto,NULL) || strlen(texto)>=LUI_TEXTO_MAX) return false;
-    if (ui->tipos[i]==UI_WIDGET_CAMPO_TEXTO && !campo_valido(texto)) return false;
-    (void)ui_utf8_copiar_seguro(ui->textos[i],LUI_TEXTO_MAX,texto);
+    size_t i = indice_id(ui, id);
+    if (!texto_valido(ui, i, texto)) return false;
+    if (strcmp(ui->textos[i], texto))
+        (void)ui_utf8_copiar_seguro(ui->textos[i],LUI_TEXTO_MAX,texto);
     if (ui->foco==i) (void)ui_utf8_copiar_seguro(ui->respaldo,sizeof ui->respaldo,texto);
     return true;
 }

@@ -47,9 +47,11 @@ def run_stress(run, args, lock, revision, exports, classify, aggregate):
         prior_library = prior / 'liblatino.so'
         paths[prior_library] = sha256(prior_library)
         prior_exports = exports_de(run, 'p04-prior-exports', prior_library)
-        if prior_exports != exports:
-            raise InvalidConfig('Alpha cambia el conjunto de símbolos de P0.2-G')
-        prior_abi = {'sha': prior_sha.strip(), 'exports': len(prior_exports), 'equal': True}
+        prior_added = exports - prior_exports
+        if prior_exports - exports or prior_added != set(revision['stress'].get('abi_agregados', [])):
+            raise InvalidConfig('Cambio inesperado respecto de la ABI previa')
+        prior_abi = {'sha': prior_sha.strip(), 'exports': len(prior_exports),
+                     'equal': not prior_added, 'added': sorted(prior_added)}
     modes = [('fe', base, 'base'), ('g-sin', candidate, 'base'),
              ('g', candidate, 'recolectar')]
     for binary_name, executable in [('stress', binary), ('sdk-anterior', old_consumer)]:

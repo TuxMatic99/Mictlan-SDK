@@ -40,6 +40,7 @@ bool lui_habilitar(UIRuntime *ui, int id, bool habilitado);
 bool lui_habilitado(const UIRuntime *ui, int id);
 bool lui_buscar_control(const UIRuntime *ui, int id, size_t *indice);
 const char *lui_texto(const UIRuntime *ui, int id);
+bool lui_texto_valido(const UIRuntime *ui, int id, const char *texto);
 bool lui_establecer_texto(UIRuntime *ui, int id, const char *texto);
 bool lui_caracter(UIRuntime *ui, unsigned int punto);
 /* Devuelve true solo si se ha producido un evento para encolar. */

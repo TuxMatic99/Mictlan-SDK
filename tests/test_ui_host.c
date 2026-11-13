@@ -40,6 +40,7 @@ static struct {
     int p1;
     int ancho, alto, cuadros_anchos;
     int caracteres_p1;
+    int paso_registro;
     unsigned int comprobaciones_p1;
     char titulo[256];
 } pantalla;
@@ -60,6 +61,11 @@ bool IsKeyPressed(int key) {
         if (pantalla.p1 == 3)
             return (key == KEY_BACKSPACE && (f == 1 || f == 4 || f == 7)) ||
                    (key == KEY_ENTER && (f == 3 || f == 6 || f == 9));
+        if (pantalla.p1 == 5) {
+            if (key == KEY_BACKSPACE) return f == 3;
+            if (key == KEY_TAB) return f == 1 || f == 5 || f == 6;
+            return key == KEY_ENTER && (f == 4 || f == 7);
+        }
         return key == KEY_ENTER;
     }
     if (pantalla.persistencia) {
@@ -78,6 +84,18 @@ bool IsKeyDown(int key) {
     return pantalla.formulario && key==KEY_LEFT_SHIFT && (pantalla.frames==8 || pantalla.frames==9);
 }
 int GetCharPressed(void) {
+    if (pantalla.p1 == 5) {
+        static const int nombre[] = {'M','a','r',0xed,'a',' ',0xd1,0xe1,0xf1,'e','z',0};
+        static const int nota[] = {'M','e','d','i','c','i',0xf3,'n',' ','5',0};
+        if (pantalla.frames == 0)
+            return nombre[pantalla.paso_registro < 11 ? pantalla.paso_registro++ : 11];
+        if (pantalla.frames == 2) {
+            int i = pantalla.paso_registro - 11;
+            if (i < 10) ++pantalla.paso_registro;
+            return nota[i];
+        }
+        return 0;
+    }
     if (pantalla.p1 == 3) {
         int f = pantalla.frames;
         if (pantalla.caracteres_p1 == f + 1) return 0;
@@ -165,6 +183,12 @@ void DrawText(const char *t, int x, int y, int tam, Color c) {
         if (pantalla.frames == 6 && strstr(t, "Revisa las componentes")) pantalla.comprobaciones_p1 |= 32;
         if (pantalla.frames == 6 && !strcmp(t, "A · B = 48")) pantalla.comprobaciones_p1 |= 64;
         if (pantalla.frames == 9 && !strcmp(t, "A · B = 88")) pantalla.comprobaciones_p1 |= 128;
+    }
+    if (pantalla.p1 == 5) {
+        if (pantalla.frames == 4 && !strcmp(t, "Observación guardada.")) pantalla.comprobaciones_p1 |= 1;
+        if (pantalla.frames == 7 && !strcmp(t, "Observación recuperada.")) pantalla.comprobaciones_p1 |= 2;
+        if (pantalla.frames == 7 && !strcmp(t, "María Ñáñez")) pantalla.comprobaciones_p1 |= 4;
+        if (pantalla.frames == 7 && !strcmp(t, "Medición ")) pantalla.comprobaciones_p1 |= 8;
     }
 }
 void DrawRectangleRec(Rectangle r, Color c) {
@@ -268,21 +292,26 @@ int main(int argc, char **argv) {
     EXIGIR(argc == 3);
 
     if (!strcmp(argv[1], "--p1") || !strcmp(argv[1], "--p1-error") ||
-        !strcmp(argv[1], "--p1-vectorlab") || !strcmp(argv[1], "--p1-carga")) {
+        !strcmp(argv[1], "--p1-vectorlab") || !strcmp(argv[1], "--p1-carga") ||
+        !strcmp(argv[1], "--p11-registro")) {
         int caso = !strcmp(argv[1], "--p1") ? 1 : !strcmp(argv[1], "--p1-error") ? 2 :
-                   !strcmp(argv[1], "--p1-vectorlab") ? 3 : 4;
-        int cuadros = caso == 3 ? 10 : caso == 4 ? 1000 : 3;
+                   !strcmp(argv[1], "--p1-vectorlab") ? 3 :
+                   !strcmp(argv[1], "--p1-carga") ? 4 : 5;
+        int cuadros = caso == 3 || caso == 5 ? 10 : caso == 4 ? 1000 : 3;
         const char *cantidad = getenv("MICTLAN_UI_CARGA");
         if (caso == 4 && cantidad) {
             char *fin;
             long n = strtol(cantidad, &fin, 10);
-            EXIGIR(!*fin && n >= 1 && n <= 10000);
+            EXIGIR(!*fin && n >= 1 && n <= 100000);
             cuadros = (int)n;
         }
         reiniciar(cuadros, false);
         pantalla.p1 = caso;
-        char *args[] = {"host_ui", argv[2], NULL};
-        EXIGIR(latino_ui_host_main(2, args) == (caso == 2 ? EXIT_FAILURE : EXIT_SUCCESS));
+        bool gc = getenv("MICTLAN_UI_PRUEBA_GC") != NULL;
+        char *args[] = {"host_ui", gc ? "--gc-experimental" : argv[2],
+                        gc ? argv[2] : NULL, NULL};
+        EXIGIR(latino_ui_host_main(gc ? 3 : 2, args) ==
+               (caso == 2 ? EXIT_FAILURE : EXIT_SUCCESS));
         EXIGIR(!pantalla.abierta && pantalla.aperturas == 1 && pantalla.cierres == 1);
         if (caso == 1) EXIGIR(pantalla.frames == 2 && pantalla.comprobaciones_p1 == 1);
         if (caso == 2) EXIGIR(pantalla.frames == 0);
@@ -291,6 +320,7 @@ int main(int argc, char **argv) {
             EXIGIR(pantalla.cuadros_anchos == 1);
         }
         if (caso == 4) EXIGIR(pantalla.frames == cuadros);
+        if (caso == 5) EXIGIR(pantalla.comprobaciones_p1 == 15);
         return EXIT_SUCCESS;
     }
 

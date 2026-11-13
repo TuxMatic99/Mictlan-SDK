@@ -100,10 +100,18 @@ copy(SDK / "herramientas/vscode-mictlan/icons/mictlan-light-256.png",
 shutil.copytree(SDK / "herramientas/vscode-mictlan", root / "herramientas/vscode-mictlan")
 shutil.copytree(a.lab / "VectorLab", root / "VectorLab")
 copy(SDK / "ejemplos/p1/vscode-tasks.json", root / "VectorLab/.vscode/tasks.json")
+shutil.copytree(a.lab / "Registro", root / "Registro")
+tareas = json.loads((SDK / "ejemplos/p1/vscode-tasks.json").read_text())
+prueba = next(tarea for tarea in tareas["tasks"] if tarea.get("group") == "test")
+prueba.update(label="Mictlán · Pruebas de Registro", args=["${workspaceFolder}/../bin/probar-registro"])
+editor = root / "Registro/.vscode"
+editor.mkdir()
+(editor / "tasks.json").write_text(json.dumps(tareas, ensure_ascii=False, indent=2) + "\n")
 copy(SDK / "ejemplos/p1/contador.mict", root / "share/mictlan/ejemplos/contador.mict")
 copy(SDK / "scripts/p1/probar-vectorlab", root / "bin/probar-vectorlab", 0o755)
+copy(SDK / "scripts/p1/probar-registro", root / "bin/probar-registro", 0o755)
 copy(SDK / "docs/p1/DISTRIBUCION.md", root / "README.md")
-for doc in ("API.md", "ARQUITECTURA.md"):
+for doc in ("API.md", "ARQUITECTURA.md", "MEMORIA-P11.md"):
     copy(SDK / "docs/p1" / doc, root / "share/doc/mictlan" / doc)
 
 versions = {"core": core_sha, "sdk": sdk_sha, "lab": lab_sha, "raylib": raylib_sha,
@@ -156,6 +164,7 @@ for suffix in ("lat", "mict"):
     if run(prefijo / "bin/mictlan", hello, cwd=extraido).splitlines()[-1:] != ["El resultado es: 42"]:
         raise SystemExit(f"Ejemplo de consola incorrecto: {suffix}")
 run(prefijo / "bin/probar-vectorlab", cwd=extraido, quiet=False)
+run(prefijo / "bin/probar-registro", cwd=extraido, quiet=False)
 result = {"status": "PASS", "versions": versions, "zip": archive.name, "sha256": digest(archive),
           "extraido": str(prefijo), "cargador": loader}
 (a.output / "paquete.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")

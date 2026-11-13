@@ -1,0 +1,7 @@
+ui.iniciar_columna(8)
+    ui.campo_texto(1, "3")
+ui.fin_contenedor()
+funcion opaca()
+    escribir("nativa sin autorizar")
+fin
+ui.al_evento(1, 2, "opaca")

@@ -20,7 +20,7 @@ import json, pathlib, sys
 d = pathlib.Path(sys.argv[1])
 s = sys.argv[2]
 for f in [d/'aplicaciones/aplicaciones.json', d/'ventana/ventana.json',
-          d/'ventana-softpipe/ventana.json']:
+          d/'ventana-softpipe/ventana.json', d/'memoria/memoria.json']:
     if f.is_file():
         r = json.loads(f.read_text())['status']
         if r != 'PASS':
@@ -55,6 +55,25 @@ if [[ "$perfil" == release ]]; then
 fi
 estado=FAIL_PROGRAM
 python3 "$sdk/tests/p1/bateria.py" "$work/sdk" "$lab" "$salida/aplicaciones" --perfil "$perfil" "${anterior[@]}"
+memoria=()
+if [[ "$perfil" == sanitizers ]]; then memoria+=(--sanitizers); fi
+if [[ "$perfil" == release ]]; then
+    memoria+=(--larga)
+    sha_base=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sdk_p1"])' "$sdk/ci/p1/revisiones.json")
+    mkdir -- "$salida/sdk-p1"
+    git -C "$sdk" archive "$sha_base" | tar -x -C "$salida/sdk-p1"
+    # Mismo anfitrión anterior. Solo se eleva el límite del backend de prueba.
+    sed -i 's/n <= 10000/n <= 100000/' "$salida/sdk-p1/tests/test_ui_host.c"
+    core_base="$core/../core-g"
+    cmake -S "$salida/sdk-p1" -B "$salida/sdk-p1-build" -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=ON "-DCMAKE_PREFIX_PATH=$work/raylib-install" \
+        "-DLATINO_INCLUDE_DIR=$core_base/include" "-DLATINO_LIBRARY=$work/core-g/liblatino.so" \
+        > "$salida/sdk-p1-build.log" 2>&1
+    cmake --build "$salida/sdk-p1-build" --parallel 2 --target test_ui_host \
+        >> "$salida/sdk-p1-build.log" 2>&1
+    memoria+=(--base "$salida/sdk-p1-build/test_ui_host")
+fi
+python3 "$sdk/tests/p1/memoria.py" "$work/sdk/test_ui_host" "$lab" "$salida/memoria" "${memoria[@]}"
 
 if [[ "$perfil" == release ]]; then
     estado=FAIL_PACKAGE
@@ -74,6 +93,7 @@ elif [[ "$perfil" == sanitizers ]]; then
     mkdir -p "$fuente/share/mictlan/ejemplos"
     cp "$sdk/ejemplos/p1/contador.mict" "$fuente/share/mictlan/ejemplos/"
     ln -s "$lab/VectorLab" "$fuente/VectorLab"
+    ln -s "$lab/Registro" "$fuente/Registro"
     control="$salida/raylib-control"
     estado=FAIL_BUILD
     cc -std=c11 -g -O0 -fsanitize=address,undefined -fno-sanitize-recover=all \
@@ -84,6 +104,7 @@ elif [[ "$perfil" == sanitizers ]]; then
         --host "$work/sdk/host_ui" --control-raylib "$control" || estado=FAIL_GUI
     bash "$sdk/scripts/p1/x11.sh" "$fuente" "$salida/ventana-softpipe" sanitizers \
         --host "$work/sdk/host_ui" --control-raylib "$control" --driver softpipe || estado=FAIL_GUI
+    python3 "$sdk/tests/p1/mesa.py" "$salida" "$salida/mesa"
     python3 - "$salida" <<'PY'
 import json, pathlib, sys
 base = pathlib.Path(sys.argv[1])
