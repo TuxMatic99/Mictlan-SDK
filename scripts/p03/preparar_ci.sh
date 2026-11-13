@@ -81,10 +81,36 @@ for component in sdk vm integration; do
     cmake --build "$work/$component" --parallel 2
 done
 cmake -S "$sdk/tests/p03" -B "$work/verifiers"
+stress_args=()
+if [[ "$revision" == p02g ]]; then
+    baseline=$(realpath "$core/../core-fe")
+    baseline_sha=$(python3 - "$sdk/ci/p03/contrato.json" <<'PY'
+import json, sys
+lock = json.load(open(sys.argv[1]))
+print(lock['core_revisions'][lock['core_revisions']['p02g']['stress']['base']]['sha'])
+PY
+)
+    test "$(git -C "$baseline" rev-parse HEAD)" = "$baseline_sha"
+    test -z "$(git -C "$baseline" status --porcelain)"
+    cmake -S "$baseline" -B "$work/core-fe" "-DCMAKE_BUILD_TYPE=$build_type" \
+        -DCMAKE_C_COMPILER=gcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        "-DCMAKE_C_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$link_flags" \
+        "-DCMAKE_SHARED_LINKER_FLAGS=$link_flags"
+    cmake --build "$work/core-fe" --target liblatino --parallel 2
+    cmake -S "$sdk/tests/p04_stress" -B "$work/stress" "-DCMAKE_BUILD_TYPE=$build_type" \
+        -DCMAKE_C_COMPILER=gcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        "-DCMAKE_C_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$link_flags" \
+        "-DLATINO_INCLUDE_DIR=$core/include" "-DP04_MEMORY_HEADER=$core/include" \
+        "-DLATINO_LIBRARY=$work/core/liblatino.so" \
+        "-DP04_BASE_INCLUDE=$baseline/include" "-DP04_BASE_LIBRARY=$work/core-fe/liblatino.so"
+    cmake --build "$work/stress" --parallel 2
+    stress_args=(--stress-build "$work/stress" --comparison-core-build "$work/core-fe")
+fi
 stage=tests
 python3 "$sdk/tests/p03_ci/probar_resultados.py"
 python3 "$sdk/tests/p03_ci/probar_core.py"
 python3 "$sdk/scripts/p03/ejecutar_bateria.py" \
     --sdk-build "$work/sdk" --core-source "$core" --core-build "$work/core" \
     --vm-build "$work/vm" --integration-build "$work/integration" --verifiers-build "$work/verifiers" \
-    --profile "$profile" --core-revision "$revision" --expected-sdk-sha "$sdk_sha" --output "$work/evidence"
+    --profile "$profile" --core-revision "$revision" --expected-sdk-sha "$sdk_sha" --output "$work/evidence" \
+    "${stress_args[@]}"

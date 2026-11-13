@@ -1,7 +1,7 @@
-name: P02F Core-SDK
+name: P04 Core-SDK y memoria en ejecución
 "on":
   pull_request:
-    branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci]
+    branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci, verificacion/p02f-ci]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        revision: [p02f_base, p02f, p02f_e]
+        revision: [p02g]
         profile: [debug, release, sanitizers]
     steps:
       - name: SDK exacto de la propuesta
@@ -37,7 +37,8 @@ jobs:
           import json, os, re
           lock = json.load(open('sdk/ci/p03/contrato.json'))
           values = {'core_sha': lock['core_revisions'][os.environ['REVISION']]['sha'],
-                    'raylib_sha': lock['raylib_sha']}
+                    'raylib_sha': lock['raylib_sha'],
+                    'baseline_sha': lock['core_revisions'][lock['core_revisions'][os.environ['REVISION']]['stress']['base']]['sha']}
           for key, value in values.items():
               assert re.fullmatch(r'[0-9a-f]{40}', value)
               print(key + '=' + value)
@@ -49,6 +50,15 @@ jobs:
           repository: TuxMatic99/Mictlan-Core
           ref: ${{ steps.contract.outputs.core_sha }}
           path: core
+          persist-credentials: false
+          token: ${{ secrets.MICTLAN_CORE_READ_TOKEN || github.token }}
+      - name: Core F+E para comparación de memoria
+        id: core_fe
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: TuxMatic99/Mictlan-Core
+          ref: ${{ steps.contract.outputs.baseline_sha }}
+          path: core-fe
           persist-credentials: false
           token: ${{ secrets.MICTLAN_CORE_READ_TOKEN || github.token }}
       - name: Raylib 5.5 fijado
@@ -63,7 +73,7 @@ jobs:
         id: deps
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev
+          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev unzip
       - name: Compilar y ejecutar sin depurador ni trazador
         id: verify
         env:
@@ -73,6 +83,14 @@ jobs:
         run: |
           bash sdk/scripts/p03/preparar_ci.sh "$PROFILE" "$GITHUB_WORKSPACE/core" \
             "$GITHUB_WORKSPACE/raylib" "$RUNNER_TEMP/p03-$REVISION-$PROFILE" "$SDK_SHA" "$REVISION"
+      - name: Extraer y comprobar la distribución Alpha
+        id: alpha
+        if: ${{ matrix.profile == 'release' }}
+        env:
+          WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
+        run: |
+          set -o pipefail
+          bash sdk/scripts/p04/preparar_alpha.sh "$GITHUB_WORKSPACE/core" "$WORK/core" "$WORK/alpha" 2>&1 | tee "$WORK/alpha.log"
       - name: Conservar tambien fallos de preparacion
         if: ${{ always() }}
         env:
@@ -87,8 +105,14 @@ jobs:
           work.mkdir(parents=True, exist_ok=True)
           steps = json.loads(os.environ['STEPS'])
           path = work / 'evidence/report.json'
-          if path.exists(): status = json.loads(path.read_text())['status']
-          elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'raylib', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
+          if path.exists():
+              status = json.loads(path.read_text())['status']
+              if status == 'PASS' and os.environ['PROFILE'] == 'release':
+                  result = work / 'alpha/alpha.json'
+                  if steps.get('alpha', {}).get('outcome') != 'success' or not result.is_file():
+                      status = 'FAIL_ALPHA'
+          elif steps.get('contract', {}).get('outcome') == 'failure': status = 'FAIL_CONFIGURATION'
+          elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'core_fe', 'raylib', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
           else: status = 'FAIL_PREPARATION'
           record = {'status': status, 'sdk_sha': os.environ['SDK_SHA'], 'steps': steps}
           (work / 'workflow.json').write_text(json.dumps(record, indent=2))
@@ -110,3 +134,8 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/CMakeCache.txt
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/compile_commands.json
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/Testing/Temporary/*.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.err
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/alpha.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.sha256

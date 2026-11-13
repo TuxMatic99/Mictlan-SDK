@@ -30,7 +30,7 @@ def classify_case(text, failed, skipped=False):
         return 'FAIL_SANITIZER'
     if re.search(r'"(?:ok"\s*:\s*false|status"\s*:\s*"FAIL")', text):
         return 'FAIL_PROGRAM'
-    if re.search(r'P033_ASSERT|FAIL linea|Assertion .*failed', text) or (failed and 'No se pudo abrir el archivo:' in text):
+    if re.search(r'P033_ASSERT|P02G_ASSERT|P04_ASSERT|FAIL linea|Assertion .*failed', text) or (failed and 'No se pudo abrir el archivo:' in text):
         return 'FAIL_PROGRAM'
     if INFRA.search(text):
         return 'BLOCKED_INFRASTRUCTURE'
@@ -92,6 +92,8 @@ def main():
     parser = ConfigParser(description=__doc__)
     for name in ['sdk-build', 'core-source', 'core-build', 'vm-build', 'verifiers-build', 'integration-build', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--stress-build', type=Path)
+    parser.add_argument('--comparison-core-build', type=Path)
     parser.add_argument('--profile', choices=['debug', 'release', 'sanitizers'], required=True)
     parser.add_argument('--core-revision', default='p02e', help='Clave exacta de core_revisions en contrato.json')
     parser.add_argument('--expected-sdk-sha', required=True)
@@ -112,20 +114,23 @@ def main():
               'profile': args.profile, 'commands': [], 'checks': {}, 'status': 'INVALID_CONFIG'}
     env = os.environ.copy()
 
-    def run(name, argv, timeout=120, cwd=None):
+    def run(name, argv, timeout=120, cwd=None, library=None):
         argv = list(map(str, argv))
         start = time.monotonic()
         stdout, stderr = args.output / (name + '.stdout.log'), args.output / (name + '.stderr.log')
         with stdout.open('wb') as out, stderr.open('wb') as err:
             try:
-                code = subprocess.run(argv, cwd=cwd or args.output, env=env, stdout=out, stderr=err, timeout=timeout).returncode
+                child_env = {**env, 'LD_LIBRARY_PATH': str(library)} if library else env
+                code = subprocess.run(argv, cwd=cwd or args.output, env=child_env,
+                                      stdout=out, stderr=err, timeout=timeout).returncode
             except subprocess.TimeoutExpired:
                 code = 'TIMEOUT'
             except OSError as exc:
                 err.write(str(exc).encode()); code = 'EXEC_ERROR'
         report['commands'].append({'name': name, 'argv': argv, 'cwd': str(cwd or args.output), 'returncode': code,
                                    'seconds': round(time.monotonic() - start, 3),
-                                   'stdout': stdout.name, 'stderr': stderr.name})
+                                   'stdout': stdout.name, 'stderr': stderr.name,
+                                   **({'library_path': str(library)} if library else {})})
         return code, stdout.read_text(errors='replace'), stderr.read_text(errors='replace')
 
     exitcode = 3
@@ -135,6 +140,8 @@ def main():
         report['contract'] = lock
         report['campaign'] = lock.get('campaign', 'P0.3-3')
         revision = lock['core_revisions'][args.core_revision]
+        if revision.get('stress') and (not args.stress_build or not args.comparison_core_build):
+            raise InvalidConfig('La comparacion P0.4 requiere los dos builds de memoria')
         report['core_revision'] = args.core_revision
         report['host_process'] = Path('/proc/self/status').read_text() if Path('/proc/self/status').exists() else 'unavailable'
         report['environment'] = {key: env.get(key) for key in ['ASAN_OPTIONS', 'UBSAN_OPTIONS', 'LSAN_OPTIONS', 'CPATH', 'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD']}
@@ -272,6 +279,9 @@ def main():
         if args.profile == 'sanitizers':
             report['checks']['modular'] = run_modular(run, args.core_source, args.core_build, args.output,
                 classify_case, aggregate)
+        if revision.get('stress'):
+            from carga_p04 import run_stress
+            report['checks']['stress'] = run_stress(run, args, lock, revision, exports, classify_case, aggregate)
         report['inputs_unchanged'] = (report['input_hashes'] == {str(path): sha256(path) for path in inputs} and
             sources == {'sdk': git_state(SDK, env), 'core': git_state(args.core_source, env)})
         if not report['inputs_unchanged']: raise InvalidConfig('Fuentes o binarios cambiaron durante la ejecucion')

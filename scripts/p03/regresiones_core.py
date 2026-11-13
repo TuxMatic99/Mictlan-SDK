@@ -36,9 +36,11 @@ def run_core(run, ctest, core, build, output, expected, classify, aggregate, kno
         status = classify(stdout + stderr, rc != 0)
         # LSan puede finalizar antes de vaciar stdout: no perder el error de
         # configuracion conocido aunque desaparezca el mensaje del interprete.
+        coverage_input = next((arg.split('=', 1)[1] for arg in test['command']
+                               if arg.startswith('-DMICTLAN_PROGRAMA=')), test['command'][-1])
         missing_coverage = test['name'] == 'coverage' and not (
-            Path(props.get('WORKING_DIRECTORY', build)) / test['command'][-1]).is_file()
-        if missing_coverage:
+            Path(props.get('WORKING_DIRECTORY', build)) / coverage_input).is_file()
+        if status != 'FAIL_SANITIZER' and (missing_coverage or 'FAIL_CONFIGURATION:' in stdout + stderr):
             status = 'FAIL_CONFIGURATION'
         rows.append({'name': test['name'], 'status': status, 'returncode': rc,
                      'missing_coverage_input': missing_coverage,
