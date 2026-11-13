@@ -7,7 +7,7 @@ El contrato conserva la matriz de Core y SDK de Alpha 0.1. P1 añade el programa
 ```bash
 sudo apt install git build-essential cmake python3 binutils pkg-config libreadline-dev \
   xorg-dev libgl1-mesa-dev libgl1-mesa-dri shared-mime-info libglib2.0-bin unzip \
-  xvfb xauth openbox xdotool wmctrl imagemagick
+  xvfb xauth openbox xdotool wmctrl x11-xserver-utils imagemagick
 mkdir ~/revisar-mictlan-p1
 cd ~/revisar-mictlan-p1
 git clone --branch aplicaciones/p11-estabilidad https://github.com/TuxMatic99/Mictlan-SDK.git sdk

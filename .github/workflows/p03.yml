@@ -122,7 +122,7 @@ jobs:
       - name: Dependencias de pruebas de ventana
         id: deps_x11
         if: ${{ matrix.profile != 'debug' }}
-        run: sudo apt-get install --yes xvfb xauth openbox xdotool wmctrl libgl1-mesa-dri imagemagick debuginfod
+        run: sudo apt-get install --yes xvfb xauth openbox xdotool wmctrl x11-xserver-utils libgl1-mesa-dri imagemagick debuginfod
       - name: Abrir la ventana de ejemplo y comprobar eventos y cierre
         id: ventana
         if: ${{ !cancelled() && matrix.profile == 'release' && steps.verify.outcome == 'success' }}

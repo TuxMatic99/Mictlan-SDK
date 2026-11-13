@@ -94,8 +94,18 @@ def tecla(key):
 
 def escribir(texto):
     for signo in texto:
-        tecla({"í": "iacute", "Ñ": "Ntilde", "á": "aacute", "ñ": "ntilde",
-               "ó": "oacute", " ": "space"}.get(signo, signo))
+        tecla("space" if signo == " " else f"U{ord(signo):04X}" if ord(signo) > 127 else signo)
+
+
+def escribir_espanol(texto):
+    # El servidor Xvfb es privado. Dar teclas propias a estas letras evita
+    # depender del layout del runner o reutilizar teclas de xdotool.
+    codigos = {"í": "240", "Ñ": "241", "á": "242", "ñ": "243", "ó": "244"}
+    for signo, codigo in codigos.items():
+        x("xmodmap", "-e", f"keycode {codigo} = U{ord(signo):04X} U{ord(signo):04X}")
+    time.sleep(0.30)
+    for signo in texto:
+        tecla(codigos.get(signo, "space" if signo == " " else signo))
 
 
 def pulsar(wid, xpix, ypix):
@@ -248,9 +258,9 @@ def registro():
     with ejecutar("registro", host, principal, gc=True) as (proc, dir):
         wid = ventana(proc, "^Registro Mictlán$")
         assert geometria(wid) == (820, 520), geometria(wid)
-        escribir("María Ñáñez")
+        escribir_espanol("María Ñáñez")
         tecla("Tab")
-        escribir("Medición 5")
+        escribir_espanol("Medición 5")
         tecla("Return")
         ruta = dir / "registro-v1.txt"
         esperado = ["Registro-v1", "María Ñáñez", "Medición 5"]
@@ -338,7 +348,7 @@ def carga(nombre, binario):
 
 
 try:
-    requisitos = ["xdotool", "wmctrl"] + (["import", "convert"] if a.capturas else [])
+    requisitos = ["xdotool", "wmctrl", "xmodmap"] + (["import", "convert"] if a.capturas else [])
     if not env.get("DISPLAY") or any(not shutil.which(cmd) for cmd in requisitos):
         report["status"] = "BLOCKED_INFRASTRUCTURE"
         raise RuntimeError("Falta servidor X11 o alguna herramienta de la prueba")

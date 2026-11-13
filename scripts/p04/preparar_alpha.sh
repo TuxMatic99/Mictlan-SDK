@@ -128,7 +128,7 @@ printf '%s\n' 'Longitud del vector:' 5 | diff -u - "$out/longitud.log"
 printf '%s\n' '=== SUMA VECTORIAL ===' 'Componente X:' 8 'Componente Y:' 16 \
     '=== SUMA DE CEROS ===' 0 0 '=== SIGNOS MIXTOS ===' 2 -8 '=== FIN ===' | diff -u - "$out/suma.log"
 casos=3
-if [[ "$revision" == alpha01 ]]; then
+if [[ "$revision" == alpha01 || "$revision" == p11 ]]; then
     "$installed/bin/mictlan" --version | tee "$out/version.log" | grep -Fx "Mictlán $version"
     "$installed/bin/mictlan" "$ejemplos/hola_mictlan.mict" > "$out/hola-mict.log" 2> "$out/hola-mict.err"
     test ! -s "$out/hola-mict.err"
