@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Mictlán ejecutar archivo activo",
+      "type": "process",
+      "command": "${workspaceFolder}/../bin/mictlan",
+      "args": ["--", "${file}"],
+      "options": { "cwd": "${fileDirname}" },
+      "problemMatcher": []
+    }
+  ]
+}

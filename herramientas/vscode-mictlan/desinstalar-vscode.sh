@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-destino="${HOME}/.vscode/extensions/tuxmatic.mictlan-language-0.1.0"
+origen="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+identificador=$(python3 "$origen/identificador.py" "$origen/package.json")
+destino="${MICTLAN_VSCODE_EXTENSIONS_DIR:-$HOME/.vscode/extensions}/$identificador"
 if [[ ! -d "$destino" ]]; then
     echo "No hay instalación local de esta versión."
     exit 0
 fi
-if [[ ! -f "$destino/package.json" ]] ||    ! grep -Fq '"name": "mictlan-language"' "$destino/package.json"; then
+if [[ -L "$destino" || ! -f "$destino/package.json" ]] ||
+   [[ $(python3 "$origen/identificador.py" "$destino/package.json") != "$identificador" ]]; then
     echo "ERROR: carpeta inesperada; no se eliminó nada." >&2
     exit 1
 fi

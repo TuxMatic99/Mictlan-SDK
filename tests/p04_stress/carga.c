@@ -128,12 +128,17 @@ static void muestra(lat_mv *mv, memoria_api api, long i, double inicio,
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3 || (strcmp(argv[1], "base") && strcmp(argv[1], "recolectar"))) return 3;
+    if ((argc != 3 && argc != 4) || (strcmp(argv[1], "base") && strcmp(argv[1], "recolectar"))) return 3;
+    bool activa = !strcmp(argv[1], "recolectar");
     char *fin;
     long vueltas = strtol(argv[2], &fin, 10);
-    if (!*argv[2] || *fin || vueltas < 1000 || vueltas > 100000) return 3;
+    if (!*argv[2] || *fin || vueltas < 1000 || vueltas > (argc == 4 ? 10000000 : 100000)) return 3;
+    long segundos = 0;
+    if (argc == 4) {
+        segundos = strtol(argv[3], &fin, 10);
+        if (!activa || !*argv[3] || *fin || segundos < 1 || segundos > 1800) return 3;
+    }
     setvbuf(stdout, NULL, _IOLBF, 0);
-    bool activa = !strcmp(argv[1], "recolectar");
     memoria_api api = cargar_api();
     lat_mv *mv = latC_crear_mv();
     CHECK(mv);
@@ -181,12 +186,16 @@ int main(int argc, char **argv) {
             if (i == 1000) meseta = m.bytes_vm;
             if (i > 1000) CHECK(m.bytes_vm <= meseta + 8192);
         }
-        if (i == 100 || i == 1000 || i == 10000 || i == vueltas) {
+        bool duracion_cumplida = segundos && i % 100 == 0 && reloj() - inicio >= (double)segundos;
+        if (i == 100 || i == 1000 || i == 10000 || i == vueltas || duracion_cumplida ||
+            (segundos && i % 100000 == 0)) {
             comprobar(mv, fija);
             muestra(mv, api, i, inicio, pausa, pausa_max, pausas_total,
                     recuperadas, bytes_recuperados, maximo);
         }
+        if (duracion_cumplida) break;
     }
+    CHECK(!segundos || reloj() - inicio >= (double)segundos);
     if (activa) {
         CHECK(api.soltar(mv, fija) == LAT_G_OK);
         CHECK(api.soltar(mv, carga.funcion) == LAT_G_OK);

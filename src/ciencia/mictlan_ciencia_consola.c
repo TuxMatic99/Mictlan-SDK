@@ -9,8 +9,7 @@
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
-        fprintf(stderr,
-                "Uso: mictlan_ciencia_consola archivo.mict\n");
+        fprintf(stderr, "Uso: %s archivo.mict\n", argv[0]);
         return EXIT_FAILURE;
     }
 

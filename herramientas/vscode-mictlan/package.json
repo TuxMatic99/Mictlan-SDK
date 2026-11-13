@@ -2,7 +2,7 @@
   "name": "mictlan-language",
   "displayName": "Mictlán: lenguaje y archivos .mict",
   "description": "Identificación de archivos .mict, iconografía original y resaltado inicial de sintaxis.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "tuxmatic",
   "license": "MIT",
   "engines": {
