@@ -172,6 +172,7 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.log
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.err
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/alpha.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.zip
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.sha256
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/ventana/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/openbox.log

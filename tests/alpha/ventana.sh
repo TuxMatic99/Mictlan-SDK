@@ -30,7 +30,14 @@ ventana=$(timeout 12 xdotool search --sync --onlyvisible --pid "$pid" --name 'Mi
 [[ "$ventana" =~ ^[0-9]+$ ]]
 xdotool getwindowname "$ventana" > "$out/titulo.log"
 xdotool windowactivate --sync "$ventana"
-xdotool key Return
+tecla() {
+    printf 'Tecla %s en ventana %s\n' "$1" "$ventana" >> "$out/entrada.log"
+    # Mantener la tecla durante varios cuadros para que Raylib lea el estado.
+    xdotool keydown "$1"
+    sleep 0.15
+    xdotool keyup "$1"
+    sleep 0.15
+}
 esperar_evento() {
     for ((i=0; i<50; i++)); do
         if grep -Fxq "$1" "$out/host.stdout.log"; then return 0; fi
@@ -39,9 +46,13 @@ esperar_evento() {
     done
     return 1
 }
+sleep 0.25
+tecla Return
 esperar_evento 'Se pulsó Saludar'
-xdotool key Tab Return
+tecla Tab
+tecla Return
 esperar_evento 'Se pulsó Despedirse'
+printf 'Solicitud de cierre de ventana %s\n' "$ventana" >> "$out/entrada.log"
 wmctrl -i -c "$(printf '0x%x' "$ventana")"
 for ((i=0; i<50; i++)); do
     if ! kill -0 "$pid" 2>/dev/null; then break; fi
