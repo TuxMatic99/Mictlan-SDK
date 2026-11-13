@@ -259,7 +259,14 @@ def registro():
     principal = root / "Registro/principal.mict"
     with ejecutar("registro", host, principal, gc=True) as (proc, dir):
         wid = ventana(proc, "^Registro Mictlán$")
-        assert geometria(wid) == (820, 520), geometria(wid)
+        ancho, alto = geometria(wid)
+        assert (ancho, alto) == (820, 520), (ancho, alto)
+        # La raíz tiene seis hijos con el mismo peso y 12 px de separación.
+        alto_fila = (alto - 110 - 5 * 12) / 6
+        y_acciones = round(70 + 4 * (alto_fila + 12) + alto_fila / 2)
+        ancho_boton = (ancho - 48 - 2 * 12) / 3
+        guardar = round(24 + ancho_boton / 2)
+        recuperar = ancho // 2
         escribir_espanol("María Ñáñez")
         tecla("Tab")
         escribir_espanol("Medición 5")
@@ -268,27 +275,16 @@ def registro():
         esperado = ["Registro-v1", "María Ñáñez", "Medición 5"]
         hasta(lambda: sesion(ruta) == esperado, "El guardado real no preservó UTF-8")
         tecla("BackSpace")
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Return")
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Return")
+        pulsar(wid, recuperar, y_acciones)
+        pulsar(wid, guardar, y_acciones)
         assert sesion(ruta) == esperado, "Recuperar no restauró lo guardado"
 
         # Un nombre válido y una nota dañada deben rechazarse juntos.
         corrupto = b"Registro-v1\nIntruso\ninv\xc0\xaf\n"
         ruta.write_bytes(corrupto)
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Return")
+        pulsar(wid, recuperar, y_acciones)
         assert ruta.read_bytes() == corrupto, "Recuperar cambió el archivo"
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Tab")
-        tecla("Return")
+        pulsar(wid, guardar, y_acciones)
         hasta(lambda: sesion(ruta) == esperado, "La carga dañada cambió el formulario")
         x("xdotool", "windowsize", "--sync", wid, "920", "580")
         hasta(lambda: geometria(wid) == (920, 580), "No se redimensionó Registro")
