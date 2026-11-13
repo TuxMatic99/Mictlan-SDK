@@ -2,7 +2,7 @@
 # Distribución de revisión en un directorio nuevo. No instala en el sistema.
 set -euo pipefail
 if [[ $# -lt 3 || $# -gt 4 ]]; then
-    echo "Uso: bash preparar_alpha.sh CORE CORE_BUILD SALIDA_NUEVA [alpha01|p02g]" >&2
+    echo "Uso: bash preparar_alpha.sh CORE CORE_BUILD SALIDA_NUEVA [alpha01|p02g|p11]" >&2
     exit 3
 fi
 export LC_ALL=C.UTF-8
@@ -10,7 +10,7 @@ core=$(realpath "$1")
 build=$(realpath "$2")
 out=$(realpath -m "$3")
 revision=${4:-alpha01}
-case "$revision" in alpha01|p02g) ;; *) exit 3 ;; esac
+case "$revision" in alpha01|p02g|p11) ;; *) exit 3 ;; esac
 sdk=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 for source in "$core" "$sdk"; do
     [[ "$out" != "$source" && "$out" != "$source/"* ]]
@@ -33,7 +33,7 @@ PY
 mkdir -- "$out"
 name=mictlan-alpha-p04-linux-x86_64
 version=
-if [[ "$revision" == alpha01 ]]; then
+if [[ "$revision" == alpha01 || "$revision" == p11 ]]; then
     identidad=$(env -u LD_LIBRARY_PATH -u LD_PRELOAD "$build/mictlan" --version)
     version=${identidad#Mictlán }
     [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]
@@ -46,7 +46,7 @@ cmake --install "$build" --prefix "$prefix" --component MictlanPortable
 cmake --install "$build" --prefix "$prefix" --component Header
 install -D -m 644 "$build/liblatino.so" "$prefix/lib/liblatino.so"
 guia="$sdk/docs/p04/LEEME_ALPHA.md"
-if [[ "$revision" == alpha01 ]]; then guia="$sdk/docs/alpha/INSTALAR.md"; fi
+if [[ "$revision" == alpha01 || "$revision" == p11 ]]; then guia="$sdk/docs/alpha/INSTALAR.md"; fi
 install -m 644 "$guia" "$prefix/README.md"
 install -m 644 "$core/docs/p02g_contrato_memoria.md" "$prefix/CONTRATO_MEMORIA.md"
 install -m 644 "$sdk/LICENSE" "$prefix/share/doc/mictlan/LICENSE-SDK"
@@ -57,7 +57,7 @@ cc -std=c11 -O2 -I"$prefix/include" \
     "$sdk/src/ciencia/"{mictlan_ciencia_consola,mictlan_ciencia_ffi,vectores2d}.c \
     -L"$prefix/lib" -Wl,-rpath,'$ORIGIN/../lib' -llatino -lm -o "$prefix/bin/mictlan-ciencia"
 
-if [[ "$revision" == alpha01 ]]; then
+if [[ "$revision" == alpha01 || "$revision" == p11 ]]; then
     install -m 644 "$core/docs/"{ESPECIFICACION_ALPHA,COMPATIBILIDAD,p02g_contrato_memoria}.md "$prefix/"
     install -m 644 "$core/ejemplos/resumen_cientifico.mict" "$prefix/share/mictlan/ejemplos/"
     mkdir -- "$prefix/herramientas"

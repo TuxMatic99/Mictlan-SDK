@@ -1,7 +1,7 @@
 name: Mictlán Applications Alpha
 "on":
   pull_request:
-    branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci, verificacion/p02f-ci, verificacion/p02g-memoria-alpha, consolidacion/alpha-0.1-sdk, aplicaciones/p1-ui]
+    branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci, verificacion/p02f-ci, verificacion/p02g-memoria-alpha, consolidacion/alpha-0.1-sdk, aplicaciones/p1-ui, aplicaciones/p1-distribucion]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        revision: [alpha01]
+        revision: [p11]
         profile: [debug, release, sanitizers]
     steps:
       - name: SDK exacto de la propuesta
@@ -38,7 +38,7 @@ jobs:
           lock = json.load(open('sdk/ci/p03/contrato.json'))
           values = {'core_sha': lock['core_revisions'][os.environ['REVISION']]['sha'],
                     'raylib_sha': lock['raylib_sha'],
-                    'prior_sha': lock['core_revisions']['p02g']['sha'],
+                    'prior_sha': lock['core_revisions'][lock['core_revisions'][os.environ['REVISION']]['stress']['abi_previa']]['sha'],
                     'baseline_sha': lock['core_revisions'][lock['core_revisions'][os.environ['REVISION']]['stress']['base']]['sha']}
           for key, value in values.items():
               assert re.fullmatch(r'[0-9a-f]{40}', value)
@@ -87,7 +87,7 @@ jobs:
           ref: ${{ steps.lab_sha.outputs.sha }}
           path: lab
           persist-credentials: false
-      - name: Core P0.2-G para comprobar la ABI anterior
+      - name: Core Alpha para comprobar la ABI anterior
         id: core_g
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -115,13 +115,14 @@ jobs:
         if: ${{ matrix.profile == 'release' }}
         env:
           WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
+          REVISION: ${{ matrix.revision }}
         run: |
           set -o pipefail
-          bash sdk/scripts/p04/preparar_alpha.sh "$GITHUB_WORKSPACE/core" "$WORK/core" "$WORK/alpha" alpha01 2>&1 | tee "$WORK/alpha.log"
+          bash sdk/scripts/p04/preparar_alpha.sh "$GITHUB_WORKSPACE/core" "$WORK/core" "$WORK/alpha" "$REVISION" 2>&1 | tee "$WORK/alpha.log"
       - name: Dependencias de pruebas de ventana
         id: deps_x11
         if: ${{ matrix.profile != 'debug' }}
-        run: sudo apt-get install --yes xvfb xauth openbox xdotool wmctrl libgl1-mesa-dri imagemagick
+        run: sudo apt-get install --yes xvfb xauth openbox xdotool wmctrl libgl1-mesa-dri imagemagick debuginfod
       - name: Abrir la ventana de ejemplo y comprobar eventos y cierre
         id: ventana
         if: ${{ !cancelled() && matrix.profile == 'release' && steps.verify.outcome == 'success' }}
@@ -142,6 +143,7 @@ jobs:
         env:
           PROFILE: ${{ matrix.profile }}
           WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
+          DEBUGINFOD_URLS: https://debuginfod.ubuntu.com
         run: |
           set -o pipefail
           bash sdk/scripts/p1/verificar.sh "$PROFILE" "$GITHUB_WORKSPACE/core" "$GITHUB_WORKSPACE/lab" \
@@ -218,6 +220,8 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1.log
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/p1.json
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/aplicaciones/
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/memoria/
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/mesa/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/ventana/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/ventana-softpipe/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete/*.zip*
@@ -225,3 +229,4 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete.log
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/vscode/vscode.json
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/anterior-build.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/sdk-p1-build.log

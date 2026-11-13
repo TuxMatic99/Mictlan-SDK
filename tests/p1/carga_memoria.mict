@@ -1,0 +1,39 @@
+ui.ventana("Carga de memoria P1.1", 740, 480)
+ui.iniciar_columna(8)
+    ui.campo_texto(1, "3")
+    ui.etiqueta_id(2, "Resultado")
+ui.fin_contenedor()
+
+modo_carga = archivo.leer_texto_seguro("modo-p11.txt")
+operaciones_carga = 0
+ultima_carga = 0
+funcion paso_carga()
+    operaciones_carga = operaciones_carga + 1
+    si modo_carga == "variable"
+        ok_carga = ui.poner_texto(1, "" .. operaciones_carga)
+    fin
+    si modo_carga == "invalida"
+        ok_carga = ui.poner_texto(1, "inválida " .. operaciones_carga)
+    fin
+    entrada_carga = ui.texto(1)
+    valor_carga = ciencia.decimal(entrada_carga)
+    si modo_carga == "invalida"
+        si tipo(valor_carga) != "nulo" error("entrada inválida aceptada") fin
+        ok_carga = ui.poner_texto(2, "Revisa el valor")
+    sino
+        vector_carga = ciencia.sumar2(valor_carga, 4, 5, 12)
+        datos_carga = {vector: vector_carga, texto: entrada_carga}
+        ultimo_carga = datos_carga.vector[0]
+        si ultimo_carga != valor_carga + 5 error("suma incorrecta") fin
+        salida_carga = "Resultado " .. ultimo_carga .. " para " .. datos_carga.texto
+        ok_carga = ui.poner_texto(2, salida_carga)
+        si modo_carga == "sesion" && operaciones_carga % 100 == 0
+            texto_sesion_carga = "Entrada " .. operaciones_carga
+            escrito_carga = archivo.escribir_atomico("salida-p11.txt", texto_sesion_carga)
+            leido_carga = archivo.leer_texto_seguro("salida-p11.txt")
+            si escrito_carga < 1 || leido_carga != texto_sesion_carga error("sesión inválida") fin
+        fin
+    fin
+    si !ok_carga error("falló la actualización") fin
+fin
+ui.al_evento(1, 2, "paso_carga")

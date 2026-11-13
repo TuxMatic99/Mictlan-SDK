@@ -47,9 +47,9 @@ muestra = out / "diagnóstico.mict"
 muestra.write_text('escribir(sin_definir)\n')
 
 
-def argumentos(task, archivo):
+def argumentos(task, archivo, carpeta=proyecto):
     def expand(s):
-        return s.replace("${workspaceFolder}", str(proyecto)).replace("${file}", str(archivo))
+        return s.replace("${workspaceFolder}", str(carpeta)).replace("${file}", str(archivo))
     return [expand(task["command"]), *map(expand, task["args"])], expand(task["options"]["cwd"])
 
 
@@ -64,8 +64,17 @@ assert Path(grafica[-1]).resolve() == proyecto / "principal.mict"
 assert run(grafica[0], "--version").startswith("Mictlán UI ")
 pruebas, cwd = argumentos(tareas[2], muestra)
 assert "sesión comprobada" in run(*pruebas, cwd=cwd)
+registro = root / "Registro"
+tareas_registro = json.loads((registro / ".vscode/tasks.json").read_text())["tasks"]
+assert len(tareas_registro) == 3 and all(t["problemMatcher"] == "$mictlan" and t["type"] == "process"
+                                        for t in tareas_registro)
+grafica_registro, cwd = argumentos(tareas_registro[1], muestra, registro)
+assert Path(grafica_registro[0]).resolve() == root / "bin/mictlan-ui"
+assert Path(grafica_registro[-1]).resolve() == registro / "principal.mict"
+pruebas_registro, cwd = argumentos(tareas_registro[2], muestra, registro)
+assert "persistencia y UTF-8 comprobados" in run(*pruebas_registro, cwd=cwd)
 run("bash", editor / "desinstalar-vscode.sh")
 assert not installed.exists()
-(out / "vscode.json").write_text(json.dumps({"status": "PASS", "tareas": 3,
+(out / "vscode.json").write_text(json.dumps({"status": "PASS", "tareas": 6,
     "linea": int(match[2]), "columna": int(match[3]), "iconos": "idénticos",
     "alcance": "Comandos, manifest, MIME y diagnóstico. Revisión gráfica manual."}, ensure_ascii=False) + "\n")

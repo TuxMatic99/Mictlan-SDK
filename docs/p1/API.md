@@ -28,6 +28,7 @@ El anfitrión ejecuta la carga inicial y abre una ventana por proceso. Para cons
 | `ui.etiqueta(texto)`, `ui.etiqueta_id(id, texto)`, `ui.boton(id, texto)`, `ui.campo_texto(id, inicial)` | Construcción inicial. IDs enteros únicos entre 0 y 9999. El árbol completo admite 128 nodos. Cada texto admite 255 bytes UTF-8. |
 | `ui.texto(id)`, `ui.longitud_texto(id)` | Obtienen una cadena o número de puntos de código. Devuelven `falso` si el control no está disponible. |
 | `ui.poner_texto(id, texto)` | Actualiza el valor y devuelve un lógico. El campo rechaza caracteres de control. |
+| `ui.texto_valido(id, texto)` | Devuelve si el control activo aceptaría el texto, sin cambiarlo. Útil para validar todos los campos antes de cargar un archivo. |
 | `ui.enfocar(id)`, `ui.habilitar(id, lógico)` | Cambian el foco o la disponibilidad de un control. Devuelven un lógico. |
 | `ui.retirar(id)` | Oculta y deshabilita el control, borra su texto y sus asociaciones. Los eventos pendientes se descartan antes de llamar al script. Su celda se conserva y el ID queda reservado hasta cerrar. |
 | `ui.cerrar()` | Solicita el cierre ordenado al terminar la acción actual. |

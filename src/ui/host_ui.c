@@ -11,6 +11,11 @@
 #include "latmv.h"
 #include "latobj.h"
 #if defined(__has_include)
+#if __has_include("latmemoria.h")
+#include "latmemoria.h"
+#endif
+#endif
+#if defined(__has_include)
 #if __has_include("mictlan_version.h")
 #include "mictlan_version.h"
 #endif
@@ -31,6 +36,10 @@
 #ifndef MICTLAN_HOST_PRUEBAS
 #include "mictlan_render_raylib.h"
 #endif
+#ifdef __linux__
+#include <sys/resource.h>
+#include <unistd.h>
+#endif
 
 static UIRuntime ui;
 static MictlanLienzo lienzo_graficos;
@@ -47,6 +56,93 @@ typedef struct {
     UICBContexto *callbacks;
     int ultimo_clic;
 } HostEventos;
+
+typedef struct {
+    bool activo;
+    int estado;
+    size_t recolecciones, reservas, bytes, ultimo_evento, bytes_base;
+    double total_ms, max_ms;
+} HostMemoria;
+
+#ifdef LAT_G_CADENAS_EXPLICITAS
+enum { GC_EVENTOS = 128, GC_CRECIMIENTO_BYTES = 2 * 1024 * 1024 };
+static bool autorizar_modulo(lat_mv *mv, const char *modulo, const char *const *nombres)
+{
+    lat_objeto *base = mv->contexto[0];
+    hash_map *tabla = NULL;
+    if (modulo) {
+        lat_objeto *obj = latO_obtener_contexto(mv, base, modulo);
+        if (!obj || obj->tipo != T_DIC) return false;
+        tabla = getDic(obj);
+    }
+    for (; *nombres; ++nombres) {
+        lat_objeto *func = tabla ? latH_obtener(tabla, *nombres)
+                                 : latO_obtener_contexto(mv, base, *nombres);
+        if (!func || func->tipo != T_CFUN || latG_autorizar(mv, getCfun(func)) != LAT_G_OK)
+            return false;
+    }
+    return true;
+}
+
+static bool habilitar_memoria(HostMemoria *memoria, lat_mv *mv)
+{
+    /* Resolver funciones antes del primer script. Un nombre de usuario
+       nunca puede ampliar la lista de direcciones auditadas. */
+    if (latG_habilitar(mv) != LAT_G_OK || latG_habilitar_cadenas(mv) != LAT_G_OK ||
+        !autorizar_modulo(mv, NULL, (const char *const[]){"incluir", "tipo", "error", NULL}) ||
+        !autorizar_modulo(mv, "cadena", (const char *const[]){"longitud", "formato", "separar", NULL}) ||
+        !autorizar_modulo(mv, "lista", (const char *const[]){"longitud", NULL}) ||
+        !autorizar_modulo(mv, "archivo", (const char *const[]){"leer_texto_seguro", "escribir_atomico", NULL}) ||
+        !autorizar_modulo(mv, "ciencia", (const char *const[]){"decimal", "sumar2", "longitud2", "producto_punto2", NULL}) ||
+        !autorizar_modulo(mv, "graficos", (const char *const[]){"circulo", "limpiar", "linea", NULL}) ||
+        !autorizar_modulo(mv, "ui_cb", (const char *const[]){"id_actual", "tipo_actual", NULL}))
+        return false;
+    memoria->activo = true;
+    memoria->estado = LAT_G_OK;
+    return true;
+}
+
+static void recolectar_memoria(HostMemoria *memoria, const UICBContexto *cb, size_t eventos)
+{
+    if (!memoria->activo || cb->ejecutando || cb->inutilizada || !ui_cb_vm_en_reposo(cb->mv))
+        return;
+    double inicio = 0, fin = 0;
+    (void)ui_despachador_reloj_monotonico(NULL, &inicio);
+    memoria->estado = latG_recolectar(cb->mv);
+    (void)ui_despachador_reloj_monotonico(NULL, &fin);
+    if (memoria->estado != LAT_G_OK) {
+        memoria->activo = false;
+        fprintf(stderr, "Mictlán UI: recolección suspendida (%d). La VM conserva sus reservas hasta el cierre.\n",
+                memoria->estado);
+        return;
+    }
+    latG_medicion medicion = {0};
+    (void)latG_medir(cb->mv, &medicion);
+    memoria->ultimo_evento = eventos;
+    memoria->bytes_base = medicion.bytes_vm;
+    memoria->recolecciones++;
+    memoria->reservas += medicion.reservas_recuperadas;
+    memoria->bytes += medicion.bytes_recuperados;
+    double pausa = fin >= inicio ? fin - inicio : 0;
+    memoria->total_ms += pausa;
+    if (pausa > memoria->max_ms) memoria->max_ms = pausa;
+}
+#endif
+
+static long rss_kib(void)
+{
+#ifdef __linux__
+    FILE *archivo = fopen("/proc/self/statm", "r");
+    if (archivo) {
+        long reservadas, residentes;
+        int n = fscanf(archivo, "%ld %ld", &reservadas, &residentes);
+        fclose(archivo);
+        long pagina = sysconf(_SC_PAGESIZE);
+        if (n == 2 && pagina > 0) return residentes * (pagina / 1024);
+    }
+#endif
+    return 0;
+}
 
 static bool control_activo(int id, size_t *indice)
 {
@@ -80,12 +176,14 @@ static UIDespachoCallbackResultado host_despachar_evento(void *usuario, UIEvento
     if (r == UI_CB_FUNCION_INEXISTENTE && !strcmp(nombre, "__ui_despachar"))
         return UI_CB_DESP_OMITIDO;
     if (r == UI_CB_ERROR_RECUPERADO) {
-        fprintf(stderr, "Mictlán UI: falló el callback '%s'; la VM recuperó su estado.\n", nombre);
+        fprintf(stderr, "Mictlán UI: falló el callback '%s' del control %d y la VM recuperó su estado.\n",
+                nombre, evento.id_widget);
         return UI_CB_DESP_ERROR_RECUPERADO;
     }
     if (r == UI_CB_FUNCION_INEXISTENTE || r == UI_CB_FIRMA_INVALIDA ||
         r == UI_CB_ARGUMENTO_INVALIDO) {
-        fprintf(stderr, "Mictlán UI: callback '%s' rechazado (%d).\n", nombre, (int)r);
+        fprintf(stderr, "Mictlán UI: el control %d requiere una función '%s' sin argumentos.\n",
+                evento.id_widget, nombre);
         return UI_CB_DESP_CONTRATO;
     }
     fprintf(stderr, "Mictlán UI: VM no reutilizable (%d).\n", (int)r);
@@ -150,6 +248,12 @@ static void n_longitud_texto(lat_mv *mv) {
     size_t n=0;
     if (!ui_utf8_validar(texto,&n)) { latC_apilar(mv,latO_falso); return; }
     latC_apilar_double(mv,(double)n);
+}
+static void n_texto_valido(lat_mv *mv) {
+    lat_objeto *valor = latC_desapilar(mv);
+    int id = leer_id(mv, latC_desapilar(mv));
+    devolver_bool(mv, control_activo(id, NULL) && valor->tipo == T_STR &&
+                      lui_texto_valido(&ui, id, latC_checar_cadena(mv, valor)));
 }
 static void iniciar_contenedor(lat_mv *mv, UITipoNodo tipo)
 {
@@ -280,6 +384,7 @@ static const lat_CReg libui[] = {
     {"etiqueta_id", n_etiqueta_id, 2},
     {"texto", n_texto, 1},
     {"poner_texto", n_poner_texto, 2},
+    {"texto_valido", n_texto_valido, 2},
     {"longitud_texto", n_longitud_texto, 1},
     {"iniciar_fila", n_fila, 1},
     {"iniciar_columna", n_columna, 1},
@@ -293,6 +398,9 @@ static void mostrar_uso(FILE *salida, const char *programa) {
                     "     %s --ayuda\n"
                     "Sin archivo se carga scripts/app_ui.lat desde el directorio actual.\n",
             programa, programa);
+#ifdef LAT_G_CADENAS_EXPLICITAS
+    fputs("Usa --gc-experimental antes de -- para probar la recolección entre callbacks.\n", salida);
+#endif
 }
 
 #if defined(__linux__) && !defined(MICTLAN_HOST_PRUEBAS)
@@ -318,6 +426,7 @@ static void cargar_icono(void)
 
 int main(int argc, char **argv) {
     const char *ruta = "scripts/app_ui.lat";
+    bool gc_solicitado = argc > 1 && !strcmp(argv[1], "--gc-experimental");
     if (argc == 2 && (!strcmp(argv[1], "--ayuda") || !strcmp(argv[1], "--help"))) {
         mostrar_uso(stdout, argv[0]);
         return EXIT_SUCCESS;
@@ -325,6 +434,10 @@ int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--version")) {
         puts("Mictlán UI " MICTLAN_VERSION);
         return EXIT_SUCCESS;
+    }
+    if (gc_solicitado) {
+        --argc;
+        ++argv;
     }
     if (argc == 3 && !strcmp(argv[1], "--") && argv[2][0]) {
         ruta = argv[2];
@@ -343,6 +456,7 @@ int main(int argc, char **argv) {
     UIDespachador despachador = {0};
     bool ventana_abierta = false;
     bool vm_comprometida = false;
+    HostMemoria memoria = {.estado = -1};
     int salida = EXIT_FAILURE;
     HostEventos eventos = {&callbacks, -1};
     memset(&sesion, 0, sizeof sesion);
@@ -387,6 +501,20 @@ int main(int argc, char **argv) {
         fprintf(stderr, "LatinoUI: no se pudo iniciar despachador\n");
         goto cerrar;
     }
+    if (gc_solicitado) {
+#ifdef LAT_G_CADENAS_EXPLICITAS
+        if (!habilitar_memoria(&memoria, mv)) {
+            fprintf(stderr, "Mictlán UI: no se pudo preparar la recolección experimental.\n");
+            goto cerrar;
+        }
+        for (const lat_CReg *f = libui; f->nombre; ++f) {
+            if (latG_autorizar(mv, f->cfun) != LAT_G_OK) goto cerrar;
+        }
+#else
+        fprintf(stderr, "Mictlán UI: este Core carece del recolector de cadenas de P1.1.\n");
+        goto cerrar;
+#endif
+    }
 
     mv->nombre_archivo = (char *)ruta;
     mv->global->REPL = false;
@@ -411,6 +539,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Mictlán UI: falló el programa inicial.\n");
         goto cerrar;
     }
+    latO_destruir(mv, funcion);
+    funcion = NULL;
+#ifdef LAT_G_CADENAS_EXPLICITAS
+    recolectar_memoria(&memoria, &callbacks, 0);
+#endif
     if (!lui_validar(&ui)) {
         fprintf(stderr, "LatinoUI: estructura invalida: %s\n", ui.error);
         goto cerrar;
@@ -423,8 +556,8 @@ int main(int argc, char **argv) {
     sesion.configurada = true;
     if (sesion.cerrar) { salida = EXIT_SUCCESS; goto cerrar; }
 
-    /* El AST y el programa permanecen vivos durante todos los callbacks.
-       Algunas referencias del bytecode son prestadas por el AST. */
+    /* El AST se conserva hasta cerrar. Core conserva el bytecode incluso
+       después de liberar el descriptor inicial. */
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(sesion.ancho, sesion.alto, ui.titulo);
@@ -511,7 +644,11 @@ int main(int argc, char **argv) {
            else {
                for (int punto=GetCharPressed();punto>0;punto=GetCharPressed())
                    (void)lui_caracter(&ui,(unsigned int)punto);
-               if (IsKeyPressed(KEY_BACKSPACE)) (void)lui_tecla(&ui,UI_TECLA_BORRAR,&evento);
+               bool borrar = IsKeyPressed(KEY_BACKSPACE);
+#ifndef MICTLAN_HOST_PRUEBAS
+               borrar = borrar || IsKeyPressedRepeat(KEY_BACKSPACE);
+#endif
+               if (borrar) (void)lui_tecla(&ui, UI_TECLA_BORRAR, &evento);
                if (IsKeyPressed(KEY_ENTER)) emitir=lui_tecla(&ui,UI_TECLA_ENTER,&evento);
            }
            if (emitir && ui_despachador_encolar(&despachador,evento)!=UI_DESP_OK)
@@ -532,6 +669,13 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Mictlán UI: reloj del despachador no disponible.\n");
             goto terminar_ventana;
         }
+#ifdef LAT_G_CADENAS_EXPLICITAS
+        if (memoria.activo &&
+            (despachador.metricas.eventos_despachados - memoria.ultimo_evento >= GC_EVENTOS ||
+             (mv->memoria_usada > memoria.bytes_base &&
+              mv->memoria_usada - memoria.bytes_base >= GC_CRECIMIENTO_BYTES)))
+            recolectar_memoria(&memoria, &callbacks, despachador.metricas.eventos_despachados);
+#endif
         if (sesion.cerrar || ui_biblioteca_consumir_cierre(biblioteca)) break;
        BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -558,7 +702,16 @@ int main(int argc, char **argv) {
                                          ui.foco==i ? DARKBLUE : GRAY);
                     BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
                     int fuente = (int)fminf(24.0f, fmaxf(10.0f, b.alto - 12.0f));
-                    DrawText(ui.textos[i], (int)b.x + 9, (int)b.y + 6,
+                    const char *texto = ui.textos[i];
+#ifndef MICTLAN_HOST_PRUEBAS
+                    if (ui.foco == i && ui.tipos[i] == UI_WIDGET_CAMPO_TEXTO) {
+                        while (*texto && MeasureText(texto, fuente) > r.width - 18) {
+                            ++texto;
+                            while (((unsigned char)*texto & 0xc0) == 0x80) ++texto;
+                        }
+                    }
+#endif
+                    DrawText(texto, (int)b.x + 9, (int)b.y + 6,
                              fuente, ui.habilitados[i] ? DARKBLUE : GRAY);
                     EndScissorMode();
                 } else {
@@ -577,18 +730,37 @@ int main(int argc, char **argv) {
     }
     salida = EXIT_SUCCESS;
 terminar_ventana:
+#ifdef LAT_G_CADENAS_EXPLICITAS
+    if (memoria.activo && despachador.metricas.eventos_despachados != memoria.ultimo_evento)
+        recolectar_memoria(&memoria, &callbacks, despachador.metricas.eventos_despachados);
+#endif
     if (getenv("MICTLAN_UI_METRICAS")) {
         double fin = inicio;
         (void)ui_despachador_reloj_monotonico(NULL, &fin);
+        size_t pico = memoria_pico;
+        long rss_pico = 0;
+#ifdef LAT_G_CADENAS_EXPLICITAS
+        latG_medicion datos = {0};
+        if (latG_medir(mv, &datos) == LAT_G_OK) pico = datos.pico_bytes_vm;
+#endif
+#ifdef __linux__
+        struct rusage uso;
+        if (getrusage(RUSAGE_SELF, &uso) == 0) rss_pico = uso.ru_maxrss;
+#endif
         fprintf(stdout, "MICTLAN_UI_METRICAS {\"cuadros\":%zu,\"eventos\":%zu,"
                 "\"eventos_entregados\":%zu,\"callback_max_ms\":%.6f,"
                 "\"ms\":%.6f,\"bytes_vm\":%zu,\"bytes_vm_pico_muestreado\":%zu,"
-                "\"cadenas\":%u,\"ancho\":%d,\"alto\":%d,\"lineas\":%zu}\n",
+                "\"cadenas\":%u,\"ancho\":%d,\"alto\":%d,\"lineas\":%zu,"
+                "\"bytes_vm_pico\":%zu,\"rss_kib\":%ld,\"rss_pico_kib\":%ld,"
+                "\"gc_estado\":%d,\"gc_recolecciones\":%zu,\"gc_reservas\":%zu,\"gc_bytes\":%zu,"
+                "\"gc_total_ms\":%.6f,\"gc_max_ms\":%.6f}\n",
                 cuadros, despachador.metricas.eventos_consumidos,
                 despachador.metricas.eventos_despachados,
                 despachador.metricas.max_callback_ms, fin - inicio,
                 mv->memoria_usada, memoria_pico, mv->global->strt.nuse,
-                ancho_anterior, alto_anterior, plano_graficos.cantidad);
+                ancho_anterior, alto_anterior, plano_graficos.cantidad,
+                pico, rss_kib(), rss_pico, memoria.estado, memoria.recolecciones,
+                memoria.reservas, memoria.bytes, memoria.total_ms, memoria.max_ms);
     }
 
 cerrar:

@@ -82,7 +82,7 @@ for component in sdk vm integration; do
 done
 cmake -S "$sdk/tests/p03" -B "$work/verifiers"
 stress_args=()
-if [[ "$revision" == p02g || "$revision" == alpha01 ]]; then
+if [[ "$revision" == p02g || "$revision" == alpha01 || "$revision" == p11 ]]; then
     baseline=$(realpath "$core/../core-fe")
     baseline_sha=$(python3 - "$sdk/ci/p03/contrato.json" "$revision" <<'PY'
 import json, sys
@@ -105,9 +105,14 @@ PY
         "-DP04_BASE_INCLUDE=$baseline/include" "-DP04_BASE_LIBRARY=$work/core-fe/liblatino.so"
     cmake --build "$work/stress" --parallel 2
     stress_args=(--stress-build "$work/stress" --comparison-core-build "$work/core-fe")
-    if [[ "$revision" == alpha01 ]]; then
+    if [[ "$revision" == alpha01 || "$revision" == p11 ]]; then
         previa=$(realpath "$core/../core-g")
-        previa_sha=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["core_revisions"]["p02g"]["sha"])' "$sdk/ci/p03/contrato.json")
+        previa_sha=$(python3 - "$sdk/ci/p03/contrato.json" "$revision" <<'PY'
+import json, sys
+revisiones = json.load(open(sys.argv[1]))["core_revisions"]
+print(revisiones[revisiones[sys.argv[2]]["stress"]["abi_previa"]]["sha"])
+PY
+)
         test "$(git -C "$previa" rev-parse HEAD)" = "$previa_sha"
         test -z "$(git -C "$previa" status --porcelain)"
         cmake -S "$previa" -B "$work/core-g" "-DCMAKE_BUILD_TYPE=$build_type" \

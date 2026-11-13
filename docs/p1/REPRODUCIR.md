@@ -10,7 +10,7 @@ sudo apt install git build-essential cmake python3 binutils pkg-config libreadli
   xvfb xauth openbox xdotool wmctrl imagemagick
 mkdir ~/revisar-mictlan-p1
 cd ~/revisar-mictlan-p1
-git clone --branch aplicaciones/p1-distribucion https://github.com/TuxMatic99/Mictlan-SDK.git sdk
+git clone --branch aplicaciones/p11-estabilidad https://github.com/TuxMatic99/Mictlan-SDK.git sdk
 git clone https://github.com/TuxMatic99/Mictlan-Core.git core
 git clone https://github.com/TuxMatic99/Mictlan-Core.git core-fe
 git clone https://github.com/TuxMatic99/Mictlan-Core.git core-g
@@ -26,12 +26,13 @@ import json, subprocess
 p1 = json.load(open("sdk/ci/p1/revisiones.json"))
 core = json.load(open("sdk/ci/p03/contrato.json"))["core_revisions"]
 for nombre, sha in [("core", p1["core"]), ("core-fe", core["p02f_e"]["sha"]),
-                    ("core-g", core["p02g"]["sha"]), ("lab", p1["lab"]), ("raylib", p1["raylib"])]:
+                    ("core-g", core[core["p11"]["stress"]["abi_previa"]]["sha"]),
+                    ("lab", p1["lab"]), ("raylib", p1["raylib"])]:
     subprocess.run(["git", "-C", nombre, "checkout", "--detach", sha], check=True)
 PY
 sdk_sha=$(git -C sdk rev-parse HEAD)
 for perfil in debug release sanitizers; do
-  bash sdk/scripts/p03/preparar_ci.sh "$perfil" core raylib "salida-$perfil" "$sdk_sha" alpha01 || exit
+  bash sdk/scripts/p03/preparar_ci.sh "$perfil" core raylib "salida-$perfil" "$sdk_sha" p11 || exit
   bash sdk/scripts/p1/verificar.sh "$perfil" core lab raylib "salida-$perfil" || exit
 done
 ```
@@ -39,3 +40,5 @@ done
 Cada directorio de salida debe ser nuevo. `evidence/report.json` contiene el contrato anterior y `p1/p1.json` la aceptación de P1. Release agrega la prueba de los dos ejecutables de consola, enlace del paquete, tareas de VS Code y ventana real con X11 virtual. El perfil instrumentado ejecuta Core y SDK con ASan y UBSan y detección de fugas activa, más un control LSan independiente. `BLOCKED_INFRASTRUCTURE` indica que una capacidad del entorno impidió completar la prueba.
 
 La prueba gráfica registra resultados del ratón, teclado, cambio de tamaño, color del plano y cierre. Los tiempos de carga de CTest se miden con un backend determinista que usa Core y callbacks reales. Los FPS solo corresponden a Raylib con ventana. El presupuesto de carga gráfica es 60 eventos y al menos 18 segundos por anfitrión. [Guía de escritorio físico](DISTRIBUCION.md).
+
+La prueba P1.1 verifica 100.000 eventos por carga en Release. Conserva JSON y JUnit en `p1/memoria`. En Linux puedes proporcionar `DEBUGINFOD_URLS=https://debuginfod.debian.net` y `debuginfod-find` para resolver trazas con el Build ID exacto. El ensayo estricto de fugas conserva su código. Para probar una compilación instrumentada en un escritorio, ejecuta `host_ui --gc-experimental -- /ruta/al/principal.mict` desde una carpeta nueva con `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:exitcode=86`, `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1:exitcode=86` y `LSAN_OPTIONS=leak_check_at_exit=1:exitcode=86`. Ejecuta sin depurador y guarda la terminal completa, el resultado de `echo $?`, el modelo de GPU, la versión de Mesa y `XDG_SESSION_TYPE`. [Contrato gráfico](MEMORIA-P11.md).
