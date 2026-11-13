@@ -38,7 +38,7 @@ install -D -m 644 "$build/liblatino.so" "$prefix/lib/liblatino.so"
 install -m 644 "$sdk/docs/p04/LEEME_ALPHA.md" "$prefix/README.md"
 install -m 644 "$core/docs/p02g_contrato_memoria.md" "$prefix/CONTRATO_MEMORIA.md"
 install -m 644 "$sdk/LICENSE" "$prefix/share/doc/mictlan/LICENSE-SDK"
-install -m 644 "$sdk/include/"{mictlan_ciencia_ffi,vectores2d}.h "$prefix/include/"
+install -m 644 "$sdk/include/"{mictlan_ciencia_ffi,mictlan_vectores2d}.h "$prefix/include/"
 install -m 644 "$sdk/tests/datos/"{mictlan_ciencia_longitud,mictlan_suma_vectorial}.mict \
     "$prefix/share/mictlan/ejemplos/"
 cc -std=c11 -O2 -I"$prefix/include" \
