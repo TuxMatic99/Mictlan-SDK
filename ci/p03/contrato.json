@@ -132,6 +132,17 @@
         "release": 22,
         "sanitizers": 38
       }
+    },
+    "p02g": {
+      "sha": "19bba8edb129890a864bee2b0ce0c34f4540e7b4",
+      "tests": {
+        "debug": 27,
+        "release": 27,
+        "sanitizers": 43
+      },
+      "stress": {
+        "base": "p02f_e"
+      }
     }
   },
   "preserved_sdk_sha": "1e49c423b9913d4418217987a5ec3eddc0b8921f",
@@ -141,7 +152,7 @@
     "mictlan_memoria_propiedad_anidada_asan",
     "mictlan_memoria_elemento_repetido_asan"
   ],
-  "campaign": "P0.2-F",
+  "campaign": "P0.2-G/P0.4",
   "p02f_observations": {
     "baseline_run": "https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43164505980",
     "owner_run": "https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43166246005",
