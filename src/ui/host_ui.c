@@ -1,3 +1,6 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -215,8 +218,10 @@ static void n_al_evento(lat_mv *mv)
         trunc(tipo) != tipo ||
         (ui.tipos[i] != UI_WIDGET_BOTON && ui.tipos[i] != UI_WIDGET_CAMPO_TEXTO) ||
         (tipo == UI_EVENTO_CLIC && ui.tipos[i] != UI_WIDGET_BOTON) ||
-        (tipo == UI_EVENTO_SUBMIT && ui.tipos[i] != UI_WIDGET_CAMPO_TEXTO))
+        (tipo == UI_EVENTO_SUBMIT && ui.tipos[i] != UI_WIDGET_CAMPO_TEXTO)) {
         latC_error(mv, "Asociación de evento inválida para el control %d", id);
+        return;
+    }
     if (strlen(nombre) >= MAX_ID_LENGTH)
         latC_error(mv, "El nombre del callback supera 63 bytes");
     lat_objeto *funcion = *nombre ? latO_obtener_contexto(mv, mv->contexto[0], nombre) : NULL;
@@ -289,6 +294,27 @@ static void mostrar_uso(FILE *salida, const char *programa) {
                     "Sin archivo se carga scripts/app_ui.lat desde el directorio actual.\n",
             programa, programa);
 }
+
+#if defined(__linux__) && !defined(MICTLAN_HOST_PRUEBAS)
+static void cargar_icono(void)
+{
+    /* Al extraer el paquete, el icono viaja junto al prefijo del ejecutable. */
+    char ruta[4096];
+    ssize_t n = readlink("/proc/self/exe", ruta, sizeof ruta - 1);
+    if (n <= 0 || (size_t)n == sizeof ruta - 1) return;
+    ruta[n] = '\0';
+    char *barra = strrchr(ruta, '/');
+    const char icono[] = "/../share/mictlan/recursos/Mictlan.png";
+    if (!barra || (size_t)(barra - ruta) + sizeof icono > sizeof ruta) return;
+    memcpy(barra, icono, sizeof icono);
+    if (!FileExists(ruta)) return;
+    Image imagen = LoadImage(ruta);
+    if (imagen.data) {
+        SetWindowIcon(imagen);
+        UnloadImage(imagen);
+    }
+}
+#endif
 
 int main(int argc, char **argv) {
     const char *ruta = "scripts/app_ui.lat";
@@ -407,6 +433,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "LatinoUI: no se pudo abrir la ventana\n");
         goto cerrar;
     }
+#if defined(__linux__) && !defined(MICTLAN_HOST_PRUEBAS)
+    cargar_icono();
+#endif
     SetExitKey(KEY_NULL);
     SetWindowMinSize(sesion.minimo_ancho, sesion.minimo_alto);
     UIEvento inicial;
@@ -554,11 +583,12 @@ terminar_ventana:
         fprintf(stdout, "MICTLAN_UI_METRICAS {\"cuadros\":%zu,\"eventos\":%zu,"
                 "\"eventos_entregados\":%zu,\"callback_max_ms\":%.6f,"
                 "\"ms\":%.6f,\"bytes_vm\":%zu,\"bytes_vm_pico_muestreado\":%zu,"
-                "\"cadenas\":%u}\n",
+                "\"cadenas\":%u,\"ancho\":%d,\"alto\":%d,\"lineas\":%zu}\n",
                 cuadros, despachador.metricas.eventos_consumidos,
                 despachador.metricas.eventos_despachados,
                 despachador.metricas.max_callback_ms, fin - inicio,
-                mv->memoria_usada, memoria_pico, mv->global->strt.nuse);
+                mv->memoria_usada, memoria_pico, mv->global->strt.nuse,
+                ancho_anterior, alto_anterior, plano_graficos.cantidad);
     }
 
 cerrar:

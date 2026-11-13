@@ -8,5 +8,6 @@ pulsos_prueba = 0
 funcion __ui_despachar()
     global pulsos_prueba = pulsos_prueba + 1
     si pulsos_prueba < 0 error("contador inválido") fin
+    escribir(pulsos_prueba)
     operacion_ok = ui.poner_texto(2, "Estable")
 fin

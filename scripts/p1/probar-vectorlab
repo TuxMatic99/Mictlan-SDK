@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# != 0 ]]; then
+    echo 'Uso: probar-vectorlab' >&2
+    exit 3
+fi
+raiz=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+trabajo=$(mktemp -d "${TMPDIR:-/tmp}/vectorlab-pruebas.XXXXXX")
+limpiar() {
+    # El único dato escrito por la prueba tiene nombre y carpeta conocidos.
+    rm -f -- "$trabajo/vectorlab-prueba-v1.txt"
+    rmdir -- "$trabajo"
+}
+trap limpiar EXIT
+cd "$trabajo"
+"$raiz/bin/mictlan-ciencia" "$raiz/VectorLab/pruebas/operaciones.mict"
+"$raiz/bin/mictlan-ciencia" "$raiz/VectorLab/pruebas/sesion.mict"

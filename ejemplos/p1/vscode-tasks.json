@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Mictlán · Consola",
+      "type": "process",
+      "command": "${workspaceFolder}/../bin/mictlan",
+      "args": [
+        "--",
+        "${file}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$mictlan"
+    },
+    {
+      "label": "Mictlán · Aplicación gráfica",
+      "type": "process",
+      "command": "${workspaceFolder}/../bin/mictlan-ui",
+      "args": [
+        "--",
+        "${workspaceFolder}/principal.mict"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$mictlan"
+    },
+    {
+      "label": "Mictlán · Pruebas de VectorLab",
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/../bin/probar-vectorlab"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": "$mictlan"
+    }
+  ]
+}

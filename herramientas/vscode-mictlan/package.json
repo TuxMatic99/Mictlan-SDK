@@ -2,7 +2,7 @@
   "name": "mictlan-language",
   "displayName": "Mictlán: lenguaje y archivos .mict",
   "description": "Identificación de archivos .mict, iconografía original y resaltado inicial de sintaxis.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "tuxmatic",
   "license": "MIT",
   "engines": {
@@ -19,6 +19,21 @@
     "espanol"
   ],
   "contributes": {
+    "problemMatchers": [
+      {
+        "name": "mictlan",
+        "owner": "mictlan",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "severity": "error",
+        "pattern": {
+          "regexp": "^(?:\\u001b\\[[0-9;]*m)?(.*):(\\d+):(\\d+):(?:\\u001b\\[[0-9;]*m)?\\s*(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    ],
     "languages": [
       {
         "id": "mictlan",

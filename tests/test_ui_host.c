@@ -272,6 +272,13 @@ int main(int argc, char **argv) {
         int caso = !strcmp(argv[1], "--p1") ? 1 : !strcmp(argv[1], "--p1-error") ? 2 :
                    !strcmp(argv[1], "--p1-vectorlab") ? 3 : 4;
         int cuadros = caso == 3 ? 10 : caso == 4 ? 1000 : 3;
+        const char *cantidad = getenv("MICTLAN_UI_CARGA");
+        if (caso == 4 && cantidad) {
+            char *fin;
+            long n = strtol(cantidad, &fin, 10);
+            EXIGIR(!*fin && n >= 1 && n <= 10000);
+            cuadros = (int)n;
+        }
         reiniciar(cuadros, false);
         pantalla.p1 = caso;
         char *args[] = {"host_ui", argv[2], NULL};
