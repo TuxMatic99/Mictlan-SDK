@@ -219,6 +219,7 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/p1.json
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/aplicaciones/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/ventana/
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/ventana-softpipe/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete/*.zip*
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete/paquete.json
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete.log

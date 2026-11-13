@@ -16,6 +16,8 @@ p.add_argument("paquete", type=Path)
 p.add_argument("salida", type=Path)
 p.add_argument("--host", type=Path)
 p.add_argument("--anterior", type=Path)
+p.add_argument("--control-raylib", type=Path)
+p.add_argument("--driver", choices=["softpipe", "llvmpipe"])
 p.add_argument("--perfil", choices=["release", "sanitizers"], default="release")
 p.add_argument("--capturas", action="store_true")
 a = p.parse_args()
@@ -26,11 +28,14 @@ out.mkdir()
 env = dict(os.environ, LC_ALL="C.UTF-8", LIBGL_ALWAYS_SOFTWARE="1", MICTLAN_UI_METRICAS="1")
 env.pop("LD_PRELOAD", None)
 env.pop("LD_LIBRARY_PATH", None)
+if a.driver:
+    env["GALLIUM_DRIVER"] = a.driver
 if a.perfil == "sanitizers":
     env.update(ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:exitcode=86",
                UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1:exitcode=86",
                LSAN_OPTIONS="leak_check_at_exit=1:exitcode=86")
-report = {"status": "FAIL_PROGRAM", "cases": {}, "entorno": "X11 virtual, Mesa software"}
+report = {"status": "FAIL_PROGRAM", "cases": {}, "entorno": "X11 virtual, Mesa software",
+          "driver_solicitado": a.driver}
 bad = re.compile(r"AddressSanitizer|UndefinedBehaviorSanitizer|LeakSanitizer|runtime error:")
 
 def revisar_sanitizadores(stdout, stderr):
@@ -66,6 +71,12 @@ def ventana(proc, titulo):
     wid = ids[0]
     activar(wid)
     time.sleep(0.26)
+    if a.perfil == "sanitizers":
+        try:
+            info = Path(f"/proc/{proc.pid}/maps").read_text()
+            proc.maps.write_text(info)
+        except OSError as exc:
+            proc.maps.write_text(str(exc) + "\n")
     return wid
 
 
@@ -113,12 +124,14 @@ def boton(wid, columna):
 
 
 @contextlib.contextmanager
-def ejecutar(nombre, binario, archivo):
+def ejecutar(nombre, binario, archivo=None):
     trabajo = out / nombre
     trabajo.mkdir()
     stdout, stderr = trabajo / "stdout.log", trabajo / "stderr.log"
     with stdout.open("wb") as o, stderr.open("wb") as e:
-        proc = subprocess.Popen([binario, archivo], cwd=trabajo, env=env, stdout=o, stderr=e)
+        argv = [binario] if archivo is None else [binario, archivo]
+        proc = subprocess.Popen(argv, cwd=trabajo, env=env, stdout=o, stderr=e)
+        proc.maps = trabajo / "maps.log"
         try:
             yield proc, trabajo
         finally:
@@ -243,6 +256,13 @@ def error_callback():
         return resultado(proc, dir, 1, "la VM recuperó su estado")
 
 
+def control_raylib():
+    with ejecutar("raylib-control", a.control_raylib.resolve()) as (proc, dir):
+        wid = ventana(proc, "Control Raylib P1")
+        cerrar(wid)
+        return resultado(proc, dir)
+
+
 def rss(pid):
     status = Path(f"/proc/{pid}/status").read_text()
     return {k: int(re.search(rf"^{k}:\s+(\d+)", status, re.M)[1]) for k in ("VmRSS", "VmHWM")}
@@ -277,12 +297,25 @@ try:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         report["status"] = "BLOCKED_INFRASTRUCTURE"
         raise
-    report["cases"]["contador"] = general()
-    report["cases"]["vectorlab"] = vectorlab()
-    report["cases"]["error_callback"] = error_callback()
+    casos = {"contador": general, "vectorlab": vectorlab, "error_callback": error_callback}
+    if a.control_raylib:
+        casos = {"raylib_control": control_raylib, **casos}
     if a.anterior:
-        report["cases"]["carga_anterior"] = carga("carga-anterior", a.anterior.resolve())
-        report["cases"]["carga_p1"] = carga("carga-p1", host)
+        casos["carga_anterior"] = lambda: carga("carga-anterior", a.anterior.resolve())
+        casos["carga_p1"] = lambda: carga("carga-p1", host)
+    fallos = set()
+    for nombre, caso in casos.items():
+        report["status"] = "FAIL_PROGRAM"
+        try:
+            report["cases"][nombre] = caso()
+        except (RuntimeError, AssertionError, subprocess.SubprocessError, OSError, KeyError, ValueError) as exc:
+            status = report["status"]
+            fallos.add(status)
+            report["cases"][nombre] = {"status": status, "error": str(exc)}
+    for status in ("FAIL_SANITIZER", "FAIL_PROGRAM", "BLOCKED_INFRASTRUCTURE"):
+        if status in fallos:
+            report["status"] = status
+            raise SystemExit(status)
     report["status"] = "PASS"
 finally:
     (out / "ventana.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")

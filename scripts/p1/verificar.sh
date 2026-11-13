@@ -19,7 +19,8 @@ terminar() {
 import json, pathlib, sys
 d = pathlib.Path(sys.argv[1])
 s = sys.argv[2]
-for f in [d/'aplicaciones/aplicaciones.json', d/'ventana/ventana.json']:
+for f in [d/'aplicaciones/aplicaciones.json', d/'ventana/ventana.json',
+          d/'ventana-softpipe/ventana.json']:
     if f.is_file():
         r = json.loads(f.read_text())['status']
         if r != 'PASS':
@@ -73,6 +74,27 @@ elif [[ "$perfil" == sanitizers ]]; then
     mkdir -p "$fuente/share/mictlan/ejemplos"
     cp "$sdk/ejemplos/p1/contador.mict" "$fuente/share/mictlan/ejemplos/"
     ln -s "$lab/VectorLab" "$fuente/VectorLab"
-    bash "$sdk/scripts/p1/x11.sh" "$fuente" "$salida/ventana" sanitizers --host "$work/sdk/host_ui"
+    control="$salida/raylib-control"
+    estado=FAIL_BUILD
+    cc -std=c11 -g -O0 -fsanitize=address,undefined -fno-sanitize-recover=all \
+       -fno-omit-frame-pointer -I"$work/raylib-install/include" "$sdk/tests/p1/raylib_control.c" \
+       -L"$work/raylib-install/lib" -Wl,-rpath,"$work/raylib-install/lib" -lraylib -o "$control"
+    estado=FAIL_GUI
+    bash "$sdk/scripts/p1/x11.sh" "$fuente" "$salida/ventana" sanitizers \
+        --host "$work/sdk/host_ui" --control-raylib "$control" || estado=FAIL_GUI
+    bash "$sdk/scripts/p1/x11.sh" "$fuente" "$salida/ventana-softpipe" sanitizers \
+        --host "$work/sdk/host_ui" --control-raylib "$control" --driver softpipe || estado=FAIL_GUI
+    python3 - "$salida" <<'PY'
+import json, pathlib, sys
+base = pathlib.Path(sys.argv[1])
+fallos = []
+for d in ("ventana", "ventana-softpipe"):
+    r = json.loads((base / d / "ventana.json").read_text())
+    print(d, r["status"], {k:v["status"] for k,v in r.get("cases", {}).items()})
+    if r["status"] != "PASS":
+        fallos.append(r["status"])
+if fallos:
+    raise SystemExit(', '.join(fallos))
+PY
 fi
 estado=PASS
