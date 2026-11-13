@@ -266,6 +266,12 @@ add_executable(host_ui
     src/ui/host_ui.c
 )
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_target_properties(host_ui PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+    install(TARGETS host_ui RUNTIME DESTINATION bin COMPONENT MictlanAplicaciones
+            EXCLUDE_FROM_ALL)
+endif()
+
 target_include_directories(host_ui
     PRIVATE
         ${LATINO_INCLUDE_DIR}
@@ -687,6 +693,12 @@ endif()
 add_executable(mictlan_ciencia_consola
     src/ciencia/mictlan_ciencia_consola.c
 )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_target_properties(mictlan_ciencia_consola PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+    install(TARGETS mictlan_ciencia_consola RUNTIME DESTINATION bin COMPONENT MictlanAplicaciones
+            EXCLUDE_FROM_ALL)
+endif()
 
 target_link_libraries(mictlan_ciencia_consola
     PRIVATE

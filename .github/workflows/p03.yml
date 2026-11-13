@@ -1,4 +1,4 @@
-name: Mictlán Alpha 0.1 Core y SDK
+name: Mictlán Applications Alpha
 "on":
   pull_request:
     branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci, verificacion/p02f-ci, verificacion/p02g-memoria-alpha, consolidacion/alpha-0.1-sdk, aplicaciones/p1-ui]
@@ -70,6 +70,23 @@ jobs:
           ref: ${{ steps.contract.outputs.raylib_sha }}
           path: raylib
           persist-credentials: false
+      - name: Resolver revisión de VectorLab
+        id: lab_sha
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, re
+          sha = json.load(open('sdk/ci/p1/revisiones.json'))['lab']
+          assert re.fullmatch(r'[0-9a-f]{40}', sha)
+          print('sha=' + sha)
+          PY
+      - name: Lab exacto
+        id: lab
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: TuxMatic99/Mictlan-Lab
+          ref: ${{ steps.lab_sha.outputs.sha }}
+          path: lab
+          persist-credentials: false
       - name: Core P0.2-G para comprobar la ABI anterior
         id: core_g
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -101,6 +118,10 @@ jobs:
         run: |
           set -o pipefail
           bash sdk/scripts/p04/preparar_alpha.sh "$GITHUB_WORKSPACE/core" "$WORK/core" "$WORK/alpha" alpha01 2>&1 | tee "$WORK/alpha.log"
+      - name: Dependencias de pruebas de ventana
+        id: deps_x11
+        if: ${{ matrix.profile != 'debug' }}
+        run: sudo apt-get install --yes xvfb xauth openbox xdotool wmctrl libgl1-mesa-dri imagemagick
       - name: Abrir la ventana de ejemplo y comprobar eventos y cierre
         id: ventana
         if: ${{ !cancelled() && matrix.profile == 'release' && steps.verify.outcome == 'success' }}
@@ -108,7 +129,6 @@ jobs:
           WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
-          sudo apt-get install --yes xvfb xauth openbox xdotool wmctrl libgl1-mesa-dri
           xvfb-run -a --server-args='-screen 0 1280x800x24' bash -e -c '
               openbox > "$1/openbox.log" 2>&1 &
               wm_pid=$!
@@ -116,6 +136,15 @@ jobs:
               for i in {1..30}; do wmctrl -m >/dev/null 2>&1 && break; sleep 0.2; done
               bash sdk/tests/alpha/ventana.sh "$1/sdk/host_ui" "$1/ventana"
           ' bash "$WORK"
+      - name: VectorLab, distribución y pruebas P1
+        id: p1
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' && (matrix.profile == 'debug' || steps.deps_x11.outcome == 'success') }}
+        env:
+          PROFILE: ${{ matrix.profile }}
+          WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
+        run: |
+          bash sdk/scripts/p1/verificar.sh "$PROFILE" "$GITHUB_WORKSPACE/core" "$GITHUB_WORKSPACE/lab" \
+            "$GITHUB_WORKSPACE/raylib" "$WORK" 2>&1 | tee "$WORK/p1.log"
       - name: Conservar tambien fallos de preparacion
         if: ${{ always() }}
         env:
@@ -140,12 +169,19 @@ jobs:
                       gui = work / 'ventana/ventana.json'
                       status = json.loads(gui.read_text())['status'] if gui.is_file() else 'BLOCKED_INFRASTRUCTURE'
           elif steps.get('contract', {}).get('outcome') == 'failure': status = 'FAIL_CONFIGURATION'
-          elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'core_fe', 'core_g', 'raylib', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
+          elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'core_fe', 'core_g', 'raylib', 'lab', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
           else: status = 'FAIL_PREPARATION'
-          record = {'status': status, 'sdk_sha': os.environ['SDK_SHA'], 'steps': steps}
+          p1 = work / 'p1/p1.json'
+          p1_status = json.loads(p1.read_text())['status'] if p1.is_file() else 'FAIL_NOT_RUN'
+          if steps.get('deps_x11', {}).get('outcome') == 'failure':
+              p1_status = 'BLOCKED_INFRASTRUCTURE'
+          if status == 'PASS' and p1_status != 'PASS':
+              status = p1_status
+          record = {'status': status, 'p1': p1_status, 'sdk_sha': os.environ['SDK_SHA'], 'steps': steps}
           (work / 'workflow.json').write_text(json.dumps(record, indent=2))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
               f.write('Core ' + os.environ['REVISION'] + ', ' + os.environ['PROFILE'] + ': **' + status + '**\n')
+              f.write('Aplicaciones P1: **' + p1_status + '**\n')
               if os.environ['PROFILE'] == 'release':
                   path = work / 'ventana/ventana.json'
                   gui = json.loads(path.read_text())['status'] if path.is_file() else 'BLOCKED_INFRASTRUCTURE'
@@ -176,3 +212,12 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.sha256
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/ventana/
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/openbox.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/p1.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/aplicaciones/
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/ventana/
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete/*.zip*
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete/paquete.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/paquete.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/vscode/vscode.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/p1/anterior-build.log
