@@ -101,7 +101,8 @@ PY
         -DCMAKE_C_COMPILER=gcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
         "-DCMAKE_C_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$link_flags" \
         "-DLATINO_INCLUDE_DIR=$core/include" "-DP04_MEMORY_HEADER=$core/include" \
-        "-DLATINO_LIBRARY=$work/core/liblatino.so"
+        "-DLATINO_LIBRARY=$work/core/liblatino.so" \
+        "-DP04_BASE_INCLUDE=$baseline/include" "-DP04_BASE_LIBRARY=$work/core-fe/liblatino.so"
     cmake --build "$work/stress" --parallel 2
     stress_args=(--stress-build "$work/stress" --comparison-core-build "$work/core-fe")
 fi

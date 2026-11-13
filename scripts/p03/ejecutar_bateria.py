@@ -281,7 +281,7 @@ def main():
                 classify_case, aggregate)
         if revision.get('stress'):
             from carga_p04 import run_stress
-            report['checks']['stress'] = run_stress(run, args, lock, revision, classify_case, aggregate)
+            report['checks']['stress'] = run_stress(run, args, lock, revision, exports, classify_case, aggregate)
         report['inputs_unchanged'] = (report['input_hashes'] == {str(path): sha256(path) for path in inputs} and
             sources == {'sdk': git_state(SDK, env), 'core': git_state(args.core_source, env)})
         if not report['inputs_unchanged']: raise InvalidConfig('Fuentes o binarios cambiaron durante la ejecucion')

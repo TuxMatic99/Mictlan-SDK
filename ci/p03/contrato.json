@@ -134,12 +134,20 @@
       }
     },
     "p02g": {
-      "sha": "19bba8edb129890a864bee2b0ce0c34f4540e7b4",
+      "sha": "29d8afeaeadd6c8ceb96a16c0c212f249154f624",
       "tests": {
-        "debug": 27,
-        "release": 27,
-        "sanitizers": 43
+        "debug": 30,
+        "release": 30,
+        "sanitizers": 46
       },
+      "added_exports": [
+        "latG_habilitar",
+        "latG_autorizar",
+        "latG_retener",
+        "latG_soltar",
+        "latG_recolectar",
+        "latG_medir"
+      ],
       "stress": {
         "base": "p02f_e"
       }

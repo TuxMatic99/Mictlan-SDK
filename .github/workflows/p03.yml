@@ -73,7 +73,7 @@ jobs:
         id: deps
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev
+          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev unzip
       - name: Compilar y ejecutar sin depurador ni trazador
         id: verify
         env:
@@ -83,6 +83,14 @@ jobs:
         run: |
           bash sdk/scripts/p03/preparar_ci.sh "$PROFILE" "$GITHUB_WORKSPACE/core" \
             "$GITHUB_WORKSPACE/raylib" "$RUNNER_TEMP/p03-$REVISION-$PROFILE" "$SDK_SHA" "$REVISION"
+      - name: Extraer y comprobar la distribución Alpha
+        id: alpha
+        if: ${{ matrix.profile == 'release' }}
+        env:
+          WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
+        run: |
+          set -o pipefail
+          bash sdk/scripts/p04/preparar_alpha.sh "$GITHUB_WORKSPACE/core" "$WORK/core" "$WORK/alpha" 2>&1 | tee "$WORK/alpha.log"
       - name: Conservar tambien fallos de preparacion
         if: ${{ always() }}
         env:
@@ -97,7 +105,12 @@ jobs:
           work.mkdir(parents=True, exist_ok=True)
           steps = json.loads(os.environ['STEPS'])
           path = work / 'evidence/report.json'
-          if path.exists(): status = json.loads(path.read_text())['status']
+          if path.exists():
+              status = json.loads(path.read_text())['status']
+              if status == 'PASS' and os.environ['PROFILE'] == 'release':
+                  result = work / 'alpha/alpha.json'
+                  if steps.get('alpha', {}).get('outcome') != 'success' or not result.is_file():
+                      status = 'FAIL_ALPHA'
           elif steps.get('contract', {}).get('outcome') == 'failure': status = 'FAIL_CONFIGURATION'
           elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'core_fe', 'raylib', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
           else: status = 'FAIL_PREPARATION'
@@ -121,3 +134,8 @@ jobs:
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/CMakeCache.txt
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/compile_commands.json
             ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/**/Testing/Temporary/*.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.log
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.err
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/alpha.json
+            ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}/alpha/*.sha256
