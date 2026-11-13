@@ -7,6 +7,8 @@
 
 #include <math.h>
 #include <stddef.h>
+#include <errno.h>
+#include <string.h>
 
 #include "latgc.h"
 #include "latmem.h"
@@ -207,6 +209,50 @@ static void n_ciencia_sumar2(lat_mv *mv)
 }
 
 
+/* Entrada decimal independiente del teclado y de la configuración regional. */
+static bool digito(char c) { return c >= '0' && c <= '9'; }
+
+static void n_ciencia_decimal(lat_mv *mv)
+{
+    lat_objeto *entrada = latC_desapilar(mv);
+    if (entrada->tipo != T_STR) {
+        latC_apilar(mv, latO_nulo);
+        return;
+    }
+    const char *inicio = latC_checar_cadena(mv, entrada);
+    inicio += strspn(inicio, " \t");
+    const char *p = inicio;
+    if (*p == '-' || *p == '+') ++p;
+    const char *entero = p;
+    while (digito(*p)) ++p;
+    bool tiene_digitos = p != entero;
+    if (*p == '.') {
+        ++p;
+        const char *fraccion = p;
+        while (digito(*p)) ++p;
+        tiene_digitos |= p != fraccion;
+    }
+    if (tiene_digitos && (*p == 'e' || *p == 'E')) {
+        ++p;
+        if (*p == '-' || *p == '+') ++p;
+        const char *exponente = p;
+        while (digito(*p)) ++p;
+        tiene_digitos = p != exponente;
+    }
+    if (!tiene_digitos || p[strspn(p, " \t")] != '\0') {
+        latC_apilar(mv, latO_nulo);
+        return;
+    }
+    errno = 0;
+    char *fin;
+    double numero = latC_strtod_c(inicio, &fin);
+    if (fin != p || errno == ERANGE || !isfinite(numero)) {
+        latC_apilar(mv, latO_nulo);
+        return;
+    }
+    latC_apilar_double(mv, numero);
+}
+
 /* Tabla de funciones del modulo ciencia. */
 
 
@@ -214,6 +260,7 @@ static const lat_CReg funciones_ciencia[] = {
     {"longitud2", n_ciencia_longitud2, 2},
     {"producto_punto2", n_ciencia_producto_punto2, 4},
     {"sumar2", n_ciencia_sumar2, 4},
+    {"decimal", n_ciencia_decimal, 1},
     {NULL, NULL, 0}
 };
 

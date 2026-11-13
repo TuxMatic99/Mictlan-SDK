@@ -1,0 +1,10 @@
+ui.iniciar_columna(8)
+    ui.boton(1, "Provocar error controlado")
+ui.fin_contenedor()
+funcion error_anidado()
+    ciencia.sumar2(3, 4, 5, "texto")
+fin
+funcion fallar()
+    error_anidado()
+fin
+ui.al_evento(1, 1, "fallar")

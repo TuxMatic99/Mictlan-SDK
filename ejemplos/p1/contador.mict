@@ -1,0 +1,21 @@
+# La ventana y sus acciones están definidas en Mictlán.
+ui.ventana("Mictlán UI · Contador", 760, 480)
+ui.iniciar_columna(12)
+    ui.etiqueta("Un contador hecho en Mictlán")
+    ui.etiqueta_id(10, "Pulsaciones: 0")
+    ui.iniciar_fila(10)
+        ui.boton(1, "Contar")
+        ui.boton(2, "Cerrar")
+    ui.fin_contenedor()
+ui.fin_contenedor()
+
+pulsaciones = 0
+funcion contar()
+    global pulsaciones = pulsaciones + 1
+    operacion_ok = ui.poner_texto(10, "Pulsaciones: " .. pulsaciones)
+fin
+funcion terminar()
+    ui.cerrar()
+fin
+ui.al_evento(1, 1, "contar")
+ui.al_evento(2, 1, "terminar")

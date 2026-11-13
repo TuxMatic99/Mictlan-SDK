@@ -9,6 +9,18 @@ void mictlan_lienzo_inicializar(MictlanLienzo *lienzo)
     lienzo->cantidad = 0;
 }
 
+bool mictlan_plano_agregar_linea(MictlanPlano *plano, MictlanLinea linea)
+{
+    if (!plano || plano->cantidad >= MICTLAN_MAX_LINEAS ||
+        !isfinite(linea.x1) || !isfinite(linea.y1) ||
+        !isfinite(linea.x2) || !isfinite(linea.y2) ||
+        fabsf(linea.x1) > 1 || fabsf(linea.y1) > 1 ||
+        fabsf(linea.x2) > 1 || fabsf(linea.y2) > 1)
+        return false;
+    plano->lineas[plano->cantidad++] = linea;
+    return true;
+}
+
 bool mictlan_lienzo_agregar_circulo(
     MictlanLienzo *lienzo,
     float x, float y, float radio,

@@ -1,0 +1,21 @@
+ui.ventana("Contratos UI", 760, 480)
+ui.iniciar_columna(10)
+    ui.boton(1, "Retirar")
+    ui.boton(2, "Cerrar")
+    ui.etiqueta_id(10, "Pendiente")
+ui.fin_contenedor()
+funcion retirar_control()
+    si ui_cb.id_actual() != 1 || ui_cb.tipo_actual() != 1 error("evento incorrecto") fin
+    si !ui.retirar(1) error("no se retiró el control") fin
+    si ui.retirar(1) || ui.enfocar(1) || ui.habilitar(1, verdadero)
+        error("el control retirado volvió a estar activo")
+    fin
+    si ui.poner_texto(1, "inactivo") error("se escribió sobre un control retirado") fin
+    operacion_ok = ui.poner_texto(10, "Se retiró una vez")
+    operacion_ok = ui.enfocar(2)
+fin
+funcion cerrar_aplicacion()
+    ui.cerrar()
+fin
+ui.al_evento(1, 1, "retirar_control")
+ui.al_evento(2, 1, "cerrar_aplicacion")
