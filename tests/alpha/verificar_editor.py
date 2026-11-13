@@ -29,9 +29,20 @@ for f in ('package.json', language['configuration'], *language['icon'].values(),
     assert (extension / f).read_bytes() == (installed / f).read_bytes()
 print(run('bash', extension / 'linux/instalar-mime.sh'), end='')
 program = root / 'proyecto/primero.mict'
-assert run('xdg-mime', 'query', 'filetype', program).strip() == 'text/x-mictlan'
-assert run('xdg-mime', 'query', 'filetype',
-           root / 'share/mictlan/ejemplos/hola_mictlan.lat').strip() != 'text/x-mictlan'
+
+
+def mime(path):
+    # GIO consulta la base MIME de XDG incluso sin una sesión de escritorio.
+    key = 'standard::content-type: '
+    matches = [line.strip()[len(key):] for line in
+               run('gio', 'info', '-a', 'standard::content-type', path).splitlines()
+               if line.strip().startswith(key)]
+    assert len(matches) == 1, path
+    return matches[0]
+
+
+assert mime(program) == 'text/x-mictlan'
+assert mime(root / 'share/mictlan/ejemplos/hola_mictlan.lat') != 'text/x-mictlan'
 for size in [16, 24, 32, 48, 64, 128, 256]:
     icon = out / f'xdg/icons/hicolor/{size}x{size}/mimetypes/text-x-mictlan.png'
     assert icon.read_bytes() == (extension / f'icons/mictlan-light-{size}.png').read_bytes()

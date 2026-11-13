@@ -4,7 +4,7 @@ Los comandos crean copias y compilaciones separadas. El informe y las PR fijan l
 
 ```bash
 sudo apt install git build-essential cmake python3 binutils pkg-config \
-  libreadline-dev xorg-dev libgl1-mesa-dev unzip shared-mime-info xdg-utils
+  libreadline-dev xorg-dev libgl1-mesa-dev unzip shared-mime-info libglib2.0-bin
 mkdir ~/mictlan-alpha-revision
 cd ~/mictlan-alpha-revision
 git clone --branch consolidacion/alpha-0.1-sdk https://github.com/TuxMatic99/Mictlan-SDK.git sdk

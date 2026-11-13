@@ -83,7 +83,7 @@ jobs:
         id: deps
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev unzip shared-mime-info xdg-utils
+          sudo apt-get install --yes build-essential cmake python3 binutils pkg-config libreadline-dev xorg-dev libgl1-mesa-dev unzip shared-mime-info libglib2.0-bin
       - name: Compilar y ejecutar sin depurador ni trazador
         id: verify
         env:
@@ -103,7 +103,7 @@ jobs:
           bash sdk/scripts/p04/preparar_alpha.sh "$GITHUB_WORKSPACE/core" "$WORK/core" "$WORK/alpha" alpha01 2>&1 | tee "$WORK/alpha.log"
       - name: Abrir la ventana de ejemplo y comprobar eventos y cierre
         id: ventana
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ !cancelled() && matrix.profile == 'release' && steps.verify.outcome == 'success' }}
         env:
           WORK: ${{ runner.temp }}/p03-${{ matrix.revision }}-${{ matrix.profile }}
           LIBGL_ALWAYS_SOFTWARE: "1"
@@ -136,6 +136,9 @@ jobs:
                   result = work / 'alpha/alpha.json'
                   if steps.get('alpha', {}).get('outcome') != 'success' or not result.is_file():
                       status = 'FAIL_ALPHA'
+                  elif steps.get('ventana', {}).get('outcome') != 'success':
+                      gui = work / 'ventana/ventana.json'
+                      status = json.loads(gui.read_text())['status'] if gui.is_file() else 'BLOCKED_INFRASTRUCTURE'
           elif steps.get('contract', {}).get('outcome') == 'failure': status = 'FAIL_CONFIGURATION'
           elif any(steps.get(k, {}).get('outcome') != 'success' for k in ['sdk', 'core', 'core_fe', 'core_g', 'raylib', 'deps']): status = 'BLOCKED_INFRASTRUCTURE'
           else: status = 'FAIL_PREPARATION'

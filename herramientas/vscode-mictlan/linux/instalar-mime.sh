@@ -19,5 +19,6 @@ done
 
 update-mime-database "$datos/mime"
 echo "OK: extensión .mict y símbolo MIME registrados para este usuario."
-echo "Comprueba con: xdg-mime query filetype archivo.mict"
+echo "Para comprobar el tipo MIME en GNOME o desde una terminal con GIO:"
+echo "  gio info -a standard::content-type archivo.mict"
 echo "El gestor de archivos puede requerir actualización de caché o reinicio."
