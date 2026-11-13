@@ -1,7 +1,7 @@
 name: Mictlán Alpha 0.1 Core y SDK
 "on":
   pull_request:
-    branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci, verificacion/p02f-ci, verificacion/p02g-memoria-alpha]
+    branches: [desarrollo/mictlan-alpha, verificacion/p03-3-ci, verificacion/p02f-ci, verificacion/p02g-memoria-alpha, consolidacion/alpha-0.1-sdk, aplicaciones/p1-ui]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:

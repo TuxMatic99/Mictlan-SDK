@@ -7,13 +7,21 @@
 #include "latast.h"
 #include "latmv.h"
 #include "latobj.h"
+#if defined(__has_include)
+#if __has_include("mictlan_version.h")
+#include "mictlan_version.h"
+#endif
+#endif
+#ifndef MICTLAN_VERSION
+#define MICTLAN_VERSION "experimental"
+#endif
+#include "mictlan_ciencia_ffi.h"
 #include "ui_runtime.h"
 #include "ui_utf8.h"
 #include "ui_eventos.h"
 #include "ui_callbacks.h"
 #include "ui_despachador.h"
 #include "ui_biblioteca.h"
-#include <float.h>
 #include "mictlan_dibujo2d.h"
 #include "mictlan_graficos_ffi.h"
 
@@ -23,37 +31,87 @@
 
 static UIRuntime ui;
 static MictlanLienzo lienzo_graficos;
-static int siguiente_etiqueta = 10000;
+static MictlanPlano plano_graficos;
+static int siguiente_etiqueta;
+static struct {
+    bool configurada, cerrar;
+    int ancho, alto, minimo_ancho, minimo_alto, lienzo_id;
+    bool retirado[LUI_MAX_NODOS];
+    char acciones[LUI_MAX_NODOS][UI_EVENTO_CANCELAR][MAX_ID_LENGTH];
+} sesion;
 
-static int *ultimo_clic_ptr = NULL;
+typedef struct {
+    UICBContexto *callbacks;
+    int ultimo_clic;
+} HostEventos;
 
-/* El despachador es independiente de Latino; este adaptador traduce
-   los estados del puente FFI al contrato del despachador. */
+static bool control_activo(int id, size_t *indice)
+{
+    size_t i;
+    if (!lui_buscar_control(&ui, id, &i) || sesion.retirado[i]) return false;
+    if (indice) *indice = i;
+    return true;
+}
+
 static UIDespachoCallbackResultado host_despachar_evento(void *usuario, UIEvento evento)
 {
-    UICBContexto *cb = (UICBContexto *)usuario;
-    UICBResultado r = ui_cb_despachar_evento(cb, "__ui_despachar", evento);
+    HostEventos *host = usuario;
+    if (evento.tipo < UI_EVENTO_CLIC || evento.tipo > UI_EVENTO_CANCELAR)
+        return UI_CB_DESP_CONTRATO;
+    if (sesion.cerrar) return UI_CB_DESP_OMITIDO;
+    size_t i;
+    const char *nombre = "__ui_despachar";
+    /* Biblioteca conserva Escape para su ID virtual 204. */
+    if (lui_buscar_control(&ui, evento.id_widget, &i)) {
+        if (sesion.retirado[i] ||
+            (!ui.habilitados[i] && evento.tipo != UI_EVENTO_CANCELAR))
+            return UI_CB_DESP_OMITIDO;
+        const char *accion = sesion.acciones[i][evento.tipo - 1];
+        if (*accion) nombre = accion;
+    }
+    UICBResultado r = ui_cb_despachar_evento(host->callbacks, nombre, evento);
     if (r == UI_CB_OK) {
-        if (ultimo_clic_ptr && evento.tipo == UI_EVENTO_CLIC) *ultimo_clic_ptr = evento.id_widget;
+        if (evento.tipo == UI_EVENTO_CLIC) host->ultimo_clic = evento.id_widget;
         return UI_CB_DESP_OK;
+    }
+    if (r == UI_CB_FUNCION_INEXISTENTE && !strcmp(nombre, "__ui_despachar"))
+        return UI_CB_DESP_OMITIDO;
+    if (r == UI_CB_ERROR_RECUPERADO) {
+        fprintf(stderr, "Mictlán UI: falló el callback '%s'; la VM recuperó su estado.\n", nombre);
+        return UI_CB_DESP_ERROR_RECUPERADO;
     }
     if (r == UI_CB_FUNCION_INEXISTENTE || r == UI_CB_FIRMA_INVALIDA ||
         r == UI_CB_ARGUMENTO_INVALIDO) {
-        fprintf(stderr, "LatinoUI: callback rechazado (codigo %d)\n", (int)r);
+        fprintf(stderr, "Mictlán UI: callback '%s' rechazado (%d).\n", nombre, (int)r);
         return UI_CB_DESP_CONTRATO;
     }
-    fprintf(stderr, "LatinoUI: VM no reutilizable (codigo %d)\n", (int)r);
+    fprintf(stderr, "Mictlán UI: VM no reutilizable (%d).\n", (int)r);
     return UI_CB_DESP_VM_ERROR;
 }
 
+static void devolver_bool(lat_mv *mv, bool valor)
+{
+    latC_apilar(mv, valor ? latO_verdadero : latO_falso);
+}
+
+static void comprobar_configuracion(lat_mv *mv)
+{
+    if (sesion.configurada)
+        latC_error(mv, "La estructura de la ventana se define al iniciar");
+}
 
 static void n_titulo(lat_mv *mv) {
     const char *texto = latC_checar_cadena(mv, latC_desapilar(mv));
-    (void)lui_titulo(&ui, texto);
+    if (!lui_titulo(&ui, texto)) latC_error(mv, "%s", ui.error);
+#ifndef MICTLAN_HOST_PRUEBAS
+    if (sesion.configurada) SetWindowTitle(ui.titulo);
+#endif
 }
 static void n_etiqueta(lat_mv *mv) {
+    comprobar_configuracion(mv);
     const char *texto = latC_checar_cadena(mv, latC_desapilar(mv));
-    (void)lui_agregar_control(&ui, siguiente_etiqueta++, UI_WIDGET_ETIQUETA, texto);
+    if (!lui_agregar_control(&ui, siguiente_etiqueta++, UI_WIDGET_ETIQUETA, texto))
+        latC_error(mv, "%s", ui.error);
 }
 static int leer_id(lat_mv *mv, lat_objeto *o) {
     if (o->tipo != T_NUMERIC) return -1;
@@ -61,50 +119,156 @@ static int leer_id(lat_mv *mv, lat_objeto *o) {
     return isfinite(n) && n >= 0 && n < 10000 && floor(n) == n ? (int)n : -1;
 }
 static void crear_control(lat_mv *mv, UITipoWidget tipo) {
+    comprobar_configuracion(mv);
     lat_objeto *o_texto=latC_desapilar(mv);
     lat_objeto *o_id=latC_desapilar(mv);
     const char *texto=latC_checar_cadena(mv,o_texto);
-    (void)lui_agregar_control(&ui,leer_id(mv,o_id),tipo,texto);
+    if (!lui_agregar_control(&ui, leer_id(mv, o_id), tipo, texto))
+        latC_error(mv, "%s", ui.error);
 }
 static void n_boton(lat_mv *mv) { crear_control(mv,UI_WIDGET_BOTON); }
 static void n_campo(lat_mv *mv) { crear_control(mv,UI_WIDGET_CAMPO_TEXTO); }
 static void n_etiqueta_id(lat_mv *mv) { crear_control(mv,UI_WIDGET_ETIQUETA); }
 static void n_texto(lat_mv *mv) {
-    const char *texto=lui_texto(&ui,leer_id(mv,latC_desapilar(mv)));
+    int id = leer_id(mv, latC_desapilar(mv));
+    const char *texto = control_activo(id, NULL) ? lui_texto(&ui, id) : NULL;
     if (texto) latC_apilar_string(mv,texto);
     else latC_apilar(mv,latO_falso);
 }
 static void n_poner_texto(lat_mv *mv) {
     lat_objeto *valor=latC_desapilar(mv);
     int id=leer_id(mv,latC_desapilar(mv));
-    bool ok=valor->tipo==T_STR && lui_establecer_texto(&ui,id,latC_checar_cadena(mv,valor));
-    latC_apilar(mv,ok ? latO_verdadero : latO_falso);
+    devolver_bool(mv, control_activo(id, NULL) && valor->tipo == T_STR &&
+                       lui_establecer_texto(&ui, id, latC_checar_cadena(mv, valor)));
 }
 static void n_longitud_texto(lat_mv *mv) {
-    const char *texto=lui_texto(&ui,leer_id(mv,latC_desapilar(mv)));
+    int id = leer_id(mv, latC_desapilar(mv));
+    const char *texto = control_activo(id, NULL) ? lui_texto(&ui, id) : NULL;
     size_t n=0;
     if (!ui_utf8_validar(texto,&n)) { latC_apilar(mv,latO_falso); return; }
     latC_apilar_double(mv,(double)n);
 }
-static void n_fila(lat_mv *mv) {
+static void iniciar_contenedor(lat_mv *mv, UITipoNodo tipo)
+{
+    comprobar_configuracion(mv);
     double espacio = latC_checar_numerico(mv, latC_desapilar(mv));
-    (void)lui_iniciar_contenedor(&ui, UI_NODO_FILA, (float)espacio);
+    if (!isfinite(espacio) || espacio < 0)
+        latC_error(mv, "La separación debe ser finita y no negativa");
+    if (espacio > 3840)
+        latC_error(mv, "La separación supera el tamaño máximo de ventana");
+    if (!lui_iniciar_contenedor(&ui, tipo, (float)espacio))
+        latC_error(mv, "%s", ui.error);
 }
-static void n_columna(lat_mv *mv) {
-    double espacio = latC_checar_numerico(mv, latC_desapilar(mv));
-    (void)lui_iniciar_contenedor(&ui, UI_NODO_COLUMNA, (float)espacio);
+
+static void n_fila(lat_mv *mv) { iniciar_contenedor(mv, UI_NODO_FILA); }
+static void n_columna(lat_mv *mv) { iniciar_contenedor(mv, UI_NODO_COLUMNA); }
+static void n_fin(lat_mv *mv)
+{
+    comprobar_configuracion(mv);
+    if (!lui_fin_contenedor(&ui)) latC_error(mv, "%s", ui.error);
 }
-static void n_fin(lat_mv *mv) { (void)mv; (void)lui_fin_contenedor(&ui); }
 
+static void n_ventana(lat_mv *mv)
+{
+    comprobar_configuracion(mv);
+    double alto = latC_checar_numerico(mv, latC_desapilar(mv));
+    double ancho = latC_checar_numerico(mv, latC_desapilar(mv));
+    const char *titulo = latC_checar_cadena(mv, latC_desapilar(mv));
+    if (!isfinite(ancho) || !isfinite(alto) || ancho < 600 || ancho > 3840 ||
+        alto < 400 || alto > 2160 || trunc(ancho) != ancho || trunc(alto) != alto)
+        latC_error(mv, "Dimensiones enteras fuera de rango (600–3840 × 400–2160)");
+    if (!lui_titulo(&ui, titulo)) latC_error(mv, "%s", ui.error);
+    sesion.ancho = (int)ancho;
+    sesion.alto = (int)alto;
+}
 
+static void n_minimo(lat_mv *mv)
+{
+    comprobar_configuracion(mv);
+    double alto = latC_checar_numerico(mv, latC_desapilar(mv));
+    double ancho = latC_checar_numerico(mv, latC_desapilar(mv));
+    if (!isfinite(ancho) || !isfinite(alto) || ancho < 600 || ancho > sesion.ancho ||
+        alto < 400 || alto > sesion.alto || trunc(ancho) != ancho || trunc(alto) != alto)
+        latC_error(mv, "El mínimo debe estar entre 600 × 400 y el tamaño inicial");
+    sesion.minimo_ancho = (int)ancho;
+    sesion.minimo_alto = (int)alto;
+}
 
+static void n_lienzo(lat_mv *mv)
+{
+    comprobar_configuracion(mv);
+    int id = leer_id(mv, latC_desapilar(mv));
+    if (sesion.lienzo_id >= 0) latC_error(mv, "La ventana admite un lienzo");
+    if (!lui_agregar_control(&ui, id, UI_WIDGET_LIENZO, ""))
+        latC_error(mv, "%s", ui.error);
+    sesion.lienzo_id = id;
+}
 
+static void n_al_evento(lat_mv *mv)
+{
+    const char *nombre = latC_checar_cadena(mv, latC_desapilar(mv));
+    double tipo = latC_checar_numerico(mv, latC_desapilar(mv));
+    int id = leer_id(mv, latC_desapilar(mv));
+    size_t i;
+    if (!control_activo(id, &i) || !lui_habilitado(&ui, id) ||
+        tipo < UI_EVENTO_CLIC || tipo > UI_EVENTO_CANCELAR || !isfinite(tipo) ||
+        trunc(tipo) != tipo ||
+        (ui.tipos[i] != UI_WIDGET_BOTON && ui.tipos[i] != UI_WIDGET_CAMPO_TEXTO) ||
+        (tipo == UI_EVENTO_CLIC && ui.tipos[i] != UI_WIDGET_BOTON) ||
+        (tipo == UI_EVENTO_SUBMIT && ui.tipos[i] != UI_WIDGET_CAMPO_TEXTO))
+        latC_error(mv, "Asociación de evento inválida para el control %d", id);
+    if (strlen(nombre) >= MAX_ID_LENGTH)
+        latC_error(mv, "El nombre del callback supera 63 bytes");
+    lat_objeto *funcion = *nombre ? latO_obtener_contexto(mv, mv->contexto[0], nombre) : NULL;
+    if (*nombre && (!funcion || funcion->tipo != T_FUN || funcion->nparams != 0 ||
+                    funcion->es_vararg))
+        latC_error(mv, "El callback '%s' debe ser una función global sin argumentos", nombre);
+    memcpy(sesion.acciones[i][(int)tipo - 1], nombre, strlen(nombre) + 1);
+}
 
+static void n_enfocar(lat_mv *mv)
+{
+    int id = leer_id(mv, latC_desapilar(mv));
+    devolver_bool(mv, control_activo(id, NULL) && lui_enfocar(&ui, id));
+}
 
+static void n_habilitar(lat_mv *mv)
+{
+    bool habilitado = latC_checar_logico(mv, latC_desapilar(mv));
+    int id = leer_id(mv, latC_desapilar(mv));
+    devolver_bool(mv, control_activo(id, NULL) && lui_habilitar(&ui, id, habilitado));
+}
 
+static void n_retirar(lat_mv *mv)
+{
+    int id = leer_id(mv, latC_desapilar(mv));
+    size_t i;
+    bool activo = control_activo(id, &i);
+    if (activo) {
+        sesion.retirado[i] = true;
+        lui_habilitar(&ui, id, false);
+        memset(sesion.acciones[i], 0, sizeof sesion.acciones[i]);
+        ui.textos[i][0] = '\0';
+    }
+    devolver_bool(mv, activo);
+}
+
+static void n_cerrar(lat_mv *mv)
+{
+    (void)mv;
+    sesion.cerrar = true;
+}
 
 static const lat_CReg libui[] = {
     {"titulo", n_titulo, 1},
+    {"ventana", n_ventana, 3},
+    {"minimo", n_minimo, 2},
+    {"lienzo", n_lienzo, 1},
+    {"al_evento", n_al_evento, 3},
+    {"enfocar", n_enfocar, 1},
+    {"habilitar", n_habilitar, 2},
+    {"retirar", n_retirar, 1},
+    {"cerrar", n_cerrar, 0},
     {"etiqueta", n_etiqueta, 1},
     {"boton", n_boton, 2},
     {"campo_texto", n_campo, 2},
@@ -119,7 +283,8 @@ static const lat_CReg libui[] = {
 };
 
 static void mostrar_uso(FILE *salida, const char *programa) {
-    fprintf(salida, "Uso: %s [archivo.lat]\n"
+    fprintf(salida, "Mictlán UI " MICTLAN_VERSION "\n"
+                    "Uso: %s [--] archivo.mict  (también .lat)\n"
                     "     %s --ayuda\n"
                     "Sin archivo se carga scripts/app_ui.lat desde el directorio actual.\n",
             programa, programa);
@@ -129,6 +294,10 @@ int main(int argc, char **argv) {
     const char *ruta = "scripts/app_ui.lat";
     if (argc == 2 && (!strcmp(argv[1], "--ayuda") || !strcmp(argv[1], "--help"))) {
         mostrar_uso(stdout, argv[0]);
+        return EXIT_SUCCESS;
+    }
+    if (argc == 2 && !strcmp(argv[1], "--version")) {
+        puts("Mictlán UI " MICTLAN_VERSION);
         return EXIT_SUCCESS;
     }
     if (argc == 3 && !strcmp(argv[1], "--") && argv[2][0]) {
@@ -149,10 +318,16 @@ int main(int argc, char **argv) {
     bool ventana_abierta = false;
     bool vm_comprometida = false;
     int salida = EXIT_FAILURE;
-    int ultimo_clic = -1;
+    HostEventos eventos = {&callbacks, -1};
+    memset(&sesion, 0, sizeof sesion);
+    sesion.ancho = 900;
+    sesion.alto = 600;
+    sesion.minimo_ancho = 600;
+    sesion.minimo_alto = 400;
+    sesion.lienzo_id = -1;
     siguiente_etiqueta = 10000;
     mictlan_lienzo_inicializar(&lienzo_graficos);
-    ultimo_clic_ptr = NULL;
+    plano_graficos.cantidad = 0;
     if (!lui_inicializar(&ui)) goto cerrar;
 
     UIEvento memoria_eventos[64] = {0};
@@ -167,21 +342,22 @@ int main(int argc, char **argv) {
     mv = latC_crear_mv();
     if (!mv) { fprintf(stderr, "No se pudo crear VM\n"); goto cerrar; }
     latC_abrir_liblatino(mv, "ui", libui);
+    mictlan_ciencia_ffi_registrar(mv);
     mictlan_graficos_ffi_registrar(
         mv,
         &lienzo_graficos
     );
+    mictlan_graficos_ffi_conectar_plano(&plano_graficos);
     biblioteca = ui_biblioteca_crear(mv, NULL);
     if (!biblioteca) { fprintf(stderr, "LatinoUI: no se pudo crear biblioteca\n"); goto cerrar; }
     ui_biblioteca_conectar_ui(biblioteca, &ui);
-    ultimo_clic_ptr = &ultimo_clic;
     if (ui_cb_inicializar(&callbacks, mv) != UI_CB_OK ||
         ui_cb_registrar(&callbacks) != UI_CB_OK) {
         fprintf(stderr, "LatinoUI: no se pudo registrar ui_cb\n");
         goto cerrar;
     }
     if (ui_despachador_inicializar_eventos(&despachador, &cola_eventos,
-                                  host_despachar_evento, &callbacks) != UI_DESP_OK) {
+                                  host_despachar_evento, &eventos) != UI_DESP_OK) {
         fprintf(stderr, "LatinoUI: no se pudo iniciar despachador\n");
         goto cerrar;
     }
@@ -199,48 +375,74 @@ int main(int argc, char **argv) {
         fprintf(stderr, "No se pudo preparar script\n");
         goto cerrar;
     }
+    const int previo = mv->ptrprevio;
+    const int argumentos = mv->prev_args;
     int resultado = latC_llamar_funcion(mv, funcion);
-    if (resultado || mv->ptrpila != 0 || mv->ptrctx != 0 ||
-        mv->tope != mv->pila || mv->contexto_actual != mv->contexto[0]) {
-        vm_comprometida = true;
-        fprintf(stderr, "LatinoUI: fallo al ejecutar el programa inicial\n");
+    vm_comprometida = !ui_cb_vm_en_reposo(mv) ||
+        (resultado && (resultado != LAT_ERRRUN || mv->ptrprevio != previo ||
+                       mv->prev_args != argumentos));
+    if (resultado || vm_comprometida) {
+        fprintf(stderr, "Mictlán UI: falló el programa inicial.\n");
         goto cerrar;
     }
     if (!lui_validar(&ui)) {
         fprintf(stderr, "LatinoUI: estructura invalida: %s\n", ui.error);
         goto cerrar;
     }
+    if (sesion.ancho < sesion.minimo_ancho || sesion.alto < sesion.minimo_alto) {
+        fprintf(stderr, "Mictlán UI: el tamaño inicial es menor que el mínimo.\n");
+        goto cerrar;
+    }
+
+    sesion.configurada = true;
+    if (sesion.cerrar) { salida = EXIT_SUCCESS; goto cerrar; }
 
     /* El AST y el programa permanecen vivos durante todos los callbacks.
        Algunas referencias del bytecode son prestadas por el AST. */
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(900, 600, ui.titulo);
+    InitWindow(sesion.ancho, sesion.alto, ui.titulo);
     ventana_abierta = IsWindowReady();
     if (!ventana_abierta) {
         fprintf(stderr, "LatinoUI: no se pudo abrir la ventana\n");
         goto cerrar;
     }
     SetExitKey(KEY_NULL);
-    SetWindowMinSize(600, 400);
+    SetWindowMinSize(sesion.minimo_ancho, sesion.minimo_alto);
     UIEvento inicial;
-    (void)lui_tecla(&ui,UI_TECLA_TAB,&inicial);
+    if (ui.foco == UI_NODO_NULO) (void)lui_tecla(&ui, UI_TECLA_TAB, &inicial);
     SetTargetFPS(60);
-    bool aviso_vm_comprometida = false;
-   for (;;) {
+    int ancho_anterior = -1, alto_anterior = -1;
+    bool valido = false;
+    double inicio = 0.0;
+    (void)ui_despachador_reloj_monotonico(NULL, &inicio);
+    size_t cuadros = 0;
+    size_t memoria_pico = mv->memoria_usada;
+    for (;;) {
         if (WindowShouldClose()) {
             if (!ui_biblioteca_protege_cierre(biblioteca) || despachador.estado_vm != UI_VM_SANA) break;
             ui_biblioteca_pedir_cierre(biblioteca);
         }
         if (ui_biblioteca_consumir_cierre(biblioteca)) break;
         ui_biblioteca_sincronizar_ui(biblioteca);
-        UIRect area = {24.0f, 70.0f, (float)GetScreenWidth() - 48.0f,
-                       (float)GetScreenHeight() - 110.0f};
-        bool valido = lui_calcular(&ui, area);
-        if (valido && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        int ancho = GetScreenWidth(), alto = GetScreenHeight();
+        if (ancho != ancho_anterior || alto != alto_anterior) {
+            UIRect area = {24.0f, 70.0f, (float)ancho - 48.0f, (float)alto - 110.0f};
+            valido = lui_calcular(&ui, area);
+            ancho_anterior = ancho;
+            alto_anterior = alto;
+        }
+#ifdef MICTLAN_HOST_PRUEBAS
+        bool enfocada = true;
+#else
+        bool enfocada = IsWindowFocused();
+#endif
+        if (valido && enfocada && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             Vector2 p = GetMousePosition();
-            for (size_t i = 0; i < ui.arbol.cantidad; i++) {
-                if (ui.nodos[i].tipo != UI_NODO_WIDGET || ui.tipos[i] == UI_WIDGET_ETIQUETA || !ui.habilitados[i]) continue;
+            for (size_t i = 0; i < ui.arbol.cantidad; ++i) {
+                if (ui.nodos[i].tipo != UI_NODO_WIDGET || sesion.retirado[i] ||
+                    (ui.tipos[i] != UI_WIDGET_BOTON && ui.tipos[i] != UI_WIDGET_CAMPO_TEXTO) ||
+                    !ui.habilitados[i]) continue;
                 UIRect b = ui.rectangulos[i];
                 Rectangle r = {b.x, b.y, b.ancho, b.alto};
                 if (CheckCollisionPointRec(p, r)) {
@@ -264,7 +466,7 @@ int main(int argc, char **argv) {
             }
         }
 
-       if (valido && despachador.estado_vm == UI_VM_SANA) {
+       if (valido && enfocada && despachador.estado_vm == UI_VM_SANA) {
            /* Un solo gesto de control por frame. La escritura queda en C;
               consultar ui.texto() es lo que crea una cadena en la VM. */
            UIEvento evento;
@@ -290,19 +492,18 @@ int main(int argc, char **argv) {
        ui_biblioteca_sincronizar_ui(biblioteca);
        UIDespachoResultado estado_frame =
            ui_despachador_procesar_frame(&despachador);
-       if (estado_frame == UI_DESP_ERR_VM_COMPROMETIDA) {
-           if (!aviso_vm_comprometida) {
-               fprintf(stderr, "LatinoUI: despachador bloqueado por fallo de VM\n");
-               aviso_vm_comprometida = true;
-           }
-       } else if (estado_frame == UI_DESP_ERR_CONTRATO) {
-           fprintf(stderr, "LatinoUI: evento rechazado por contrato\n");
-       } else if (estado_frame == UI_DESP_ERR_RELOJ) {
-           fprintf(stderr, "LatinoUI: reloj del despachador no disponible\n");
-       }
-
-
-       if (ui_biblioteca_consumir_cierre(biblioteca)) break;
+        if (mv->memoria_usada > memoria_pico) memoria_pico = mv->memoria_usada;
+        if (estado_frame == UI_DESP_ERR_VM_COMPROMETIDA || estado_frame == UI_DESP_ERR_CALLBACK)
+            goto terminar_ventana;
+        if (estado_frame == UI_DESP_ERR_CONTRATO) {
+            fprintf(stderr, "Mictlán UI: evento rechazado por contrato.\n");
+            goto terminar_ventana;
+        }
+        if (estado_frame == UI_DESP_ERR_RELOJ) {
+            fprintf(stderr, "Mictlán UI: reloj del despachador no disponible.\n");
+            goto terminar_ventana;
+        }
+        if (sesion.cerrar || ui_biblioteca_consumir_cierre(biblioteca)) break;
        BeginDrawing();
         ClearBackground(RAYWHITE);
         DrawText(ui.titulo, 24, 19, 28, DARKBLUE);
@@ -312,39 +513,63 @@ int main(int argc, char **argv) {
             for (size_t i = 0; i < ui.arbol.cantidad; i++) {
                 UIRect b = ui.rectangulos[i];
                 Rectangle r = {b.x, b.y, b.ancho, b.alto};
+                if (sesion.retirado[i]) continue;
                 if (ui.nodos[i].tipo == UI_NODO_WIDGET) {
+                    if (ui.tipos[i] == UI_WIDGET_LIENZO) {
+                        DrawRectangleRec(r, (Color){250, 253, 255, 255});
+                        DrawRectangleLinesEx(r, 1.0f, LIGHTGRAY);
+#ifndef MICTLAN_HOST_PRUEBAS
+                        mictlan_renderizar_lineas(&plano_graficos, b);
+#endif
+                        continue;
+                    }
                     bool boton = ui.tipos[i] == UI_WIDGET_BOTON;
                     DrawRectangleRec(r, boton && ui.habilitados[i] ? SKYBLUE : (Color){231, 239, 247, 255});
                     DrawRectangleLinesEx(r, ui.foco==i ? 3.0f : 1.0f,
                                          ui.foco==i ? DARKBLUE : GRAY);
                     BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
-                    DrawText(ui.textos[i], (int)b.x + 9, (int)b.y + 8, 24, ui.habilitados[i] ? DARKBLUE : GRAY);
+                    int fuente = (int)fminf(24.0f, fmaxf(10.0f, b.alto - 12.0f));
+                    DrawText(ui.textos[i], (int)b.x + 9, (int)b.y + 6,
+                             fuente, ui.habilitados[i] ? DARKBLUE : GRAY);
                     EndScissorMode();
                 } else {
                     DrawRectangleLinesEx(r, 1.0f, LIGHTGRAY);
                 }
             }
         }
-        DrawText(TextFormat("Ultimo clic: %d", ultimo_clic), 24, GetScreenHeight() - 31, 20, DARKGRAY);
+        DrawText(TextFormat("Ultimo clic: %d", eventos.ultimo_clic), 24, GetScreenHeight() - 31, 20, DARKGRAY);
 
         #ifndef MICTLAN_HOST_PRUEBAS
             mictlan_renderizar_lienzo(&lienzo_graficos);
         #endif
         
         EndDrawing();
+        ++cuadros;
     }
     salida = EXIT_SUCCESS;
+terminar_ventana:
+    if (getenv("MICTLAN_UI_METRICAS")) {
+        double fin = inicio;
+        (void)ui_despachador_reloj_monotonico(NULL, &fin);
+        fprintf(stdout, "MICTLAN_UI_METRICAS {\"cuadros\":%zu,\"eventos\":%zu,"
+                "\"eventos_entregados\":%zu,\"callback_max_ms\":%.6f,"
+                "\"ms\":%.6f,\"bytes_vm\":%zu,\"bytes_vm_pico_muestreado\":%zu,"
+                "\"cadenas\":%u}\n",
+                cuadros, despachador.metricas.eventos_consumidos,
+                despachador.metricas.eventos_despachados,
+                despachador.metricas.max_callback_ms, fin - inicio,
+                mv->memoria_usada, memoria_pico, mv->global->strt.nuse);
+    }
 
 cerrar:
     if (ventana_abierta) CloseWindow();
     ui_cb_desregistrar(&callbacks);
     mictlan_graficos_ffi_desconectar();
-    ultimo_clic_ptr = NULL;
     ui_biblioteca_destruir(biblioteca);
     if (vm_comprometida || despachador.estado_vm == UI_VM_COMPROMETIDA ||
         callbacks.inutilizada) {
-        /* Tras longjmp, Latino no garantiza liberar con seguridad esta VM.
-           El SO recuperara los recursos al terminar el proceso. */
+        /* Los recursos externos ya se cerraron. Una VM incoherente queda
+           aislada hasta que termina el proceso. */
         fprintf(stderr, "LatinoUI: cierre con VM comprometida; se omite destructor\n");
         return EXIT_FAILURE;
     }

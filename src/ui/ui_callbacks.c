@@ -49,6 +49,14 @@ UICBResultado ui_cb_registrar(UICBContexto *ctx)
     return UI_CB_OK;
 }
 
+bool ui_cb_vm_en_reposo(const lat_mv *mv)
+{
+    return mv && mv->pila && mv->contexto[0] &&
+           mv->ptrpila == 0 && mv->ptrctx == 0 && mv->numejec == 0 &&
+           mv->tope == mv->pila && mv->contexto_actual == mv->contexto[0] &&
+           mv->error == NULL;
+}
+
 UICBResultado ui_cb_despachar_evento(UICBContexto *ctx, const char *nombre, UIEvento evento)
 {
     if (!ctx || !nombre || !*nombre || !ctx->mv || evento.id_widget < 0 ||
@@ -59,9 +67,7 @@ UICBResultado ui_cb_despachar_evento(UICBContexto *ctx, const char *nombre, UIEv
     if (ctx->ejecutando) return UI_CB_OCUPADO;
 
     lat_mv *mv = ctx->mv;
-    if (mv->ptrpila != 0 || mv->ptrctx != 0 ||
-        mv->tope != mv->pila ||
-        mv->contexto_actual != mv->contexto[0]) {
+    if (!ui_cb_vm_en_reposo(mv)) {
         ctx->inutilizada = true;
         return UI_CB_ESTADO_INVALIDO;
     }
@@ -75,16 +81,21 @@ UICBResultado ui_cb_despachar_evento(UICBContexto *ctx, const char *nombre, UIEv
     ctx->evento_tipo = evento.tipo;
     ctx->ejecutando = true;
     ctx->llamadas++;
+    const int previo = mv->ptrprevio;
+    const int argumentos = mv->prev_args;
     int estado = latC_llamar_funcion(mv, func);
     ctx->ejecutando = false;
 
-    /* No intentar reconstruir una pila tras longjmp: bloquear la VM. */
-    if (estado != 0 || mv->ptrpila != 0 || mv->ptrctx != 0 ||
-        mv->tope != mv->pila ||
-        mv->contexto_actual != mv->contexto[0]) {
+    if (!ui_cb_vm_en_reposo(mv) ||
+        (estado != 0 && (estado != LAT_ERRRUN ||
+                        mv->ptrprevio != previo || mv->prev_args != argumentos))) {
         ctx->errores++;
         ctx->inutilizada = true;
         return estado != 0 ? UI_CB_ERROR_VM : UI_CB_ESTADO_INVALIDO;
+    }
+    if (estado == LAT_ERRRUN) {
+        ctx->errores++;
+        return UI_CB_ERROR_RECUPERADO;
     }
 
     ctx->exitos++;

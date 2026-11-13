@@ -7,7 +7,9 @@
 #define LUI_MAX_NODOS 128
 #define LUI_TEXTO_MAX 256
 
-typedef enum { UI_WIDGET_ETIQUETA, UI_WIDGET_BOTON, UI_WIDGET_CAMPO_TEXTO } UITipoWidget;
+typedef enum {
+    UI_WIDGET_ETIQUETA, UI_WIDGET_BOTON, UI_WIDGET_CAMPO_TEXTO, UI_WIDGET_LIENZO
+} UITipoWidget;
 typedef enum { UI_TECLA_TAB, UI_TECLA_RETROTAB, UI_TECLA_ENTER,
                UI_TECLA_ESCAPE, UI_TECLA_BORRAR } UITecla;
 typedef struct {
@@ -36,6 +38,7 @@ bool lui_agregar_control(UIRuntime *ui, int id, UITipoWidget tipo, const char *t
 bool lui_enfocar(UIRuntime *ui, int id);
 bool lui_habilitar(UIRuntime *ui, int id, bool habilitado);
 bool lui_habilitado(const UIRuntime *ui, int id);
+bool lui_buscar_control(const UIRuntime *ui, int id, size_t *indice);
 const char *lui_texto(const UIRuntime *ui, int id);
 bool lui_establecer_texto(UIRuntime *ui, int id, const char *texto);
 bool lui_caracter(UIRuntime *ui, unsigned int punto);

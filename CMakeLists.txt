@@ -456,6 +456,7 @@ target_link_libraries(mictlan_render_raylib
         mictlan_dibujo2d
     PRIVATE
         raylib
+        m
 )
 
 
@@ -657,6 +658,26 @@ target_link_libraries(mictlan_ciencia_ffi
     PRIVATE "${LATINO_LIBRARY}"
 )
 
+target_link_libraries(host_ui PRIVATE mictlan_ciencia_ffi)
+if(BUILD_TESTING)
+    foreach(prueba IN ITEMS host_ui_para_pruebas test_ui_host test_ui_biblioteca test_ui_edicion_host)
+        target_link_libraries(${prueba} PRIVATE mictlan_ciencia_ffi)
+    endforeach()
+endif()
+
+if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    foreach(caso IN ITEMS eventos error)
+        set(script "${CMAKE_CURRENT_SOURCE_DIR}/tests/p1/${caso}.mict")
+        if(caso STREQUAL "error")
+            set(script "${CMAKE_CURRENT_SOURCE_DIR}/tests/p1/error_callback.mict")
+        endif()
+        add_test(NAME mictlan_p1_ui_${caso}
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/p1/ejecutar_host.py"
+                "$<TARGET_FILE:test_ui_host>" "${caso}" "${script}")
+        set_tests_properties(mictlan_p1_ui_${caso} PROPERTIES TIMEOUT 45 LABELS "p1;ui")
+    endforeach()
+endif()
 
 
 # ==============================================

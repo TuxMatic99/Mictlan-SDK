@@ -15,7 +15,8 @@ typedef enum {
     UI_CB_ESTADO_INVALIDO,
     UI_CB_FUNCION_INEXISTENTE,
     UI_CB_FIRMA_INVALIDA,
-    UI_CB_ERROR_VM
+    UI_CB_ERROR_VM,
+    UI_CB_ERROR_RECUPERADO
 } UICBResultado;
 
 typedef struct {
@@ -35,6 +36,7 @@ UICBResultado ui_cb_registrar(UICBContexto *ctx);
 UICBResultado ui_cb_despachar(UICBContexto *ctx, const char *nombre,
                              int evento_id);
 UICBResultado ui_cb_despachar_evento(UICBContexto *ctx, const char *nombre, UIEvento evento);
+bool ui_cb_vm_en_reposo(const lat_mv *mv);
 void ui_cb_desregistrar(UICBContexto *ctx);
 
 #endif

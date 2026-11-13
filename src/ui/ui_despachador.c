@@ -116,7 +116,11 @@ UIDespachoResultado ui_despachador_procesar_frame(UIDespachador *d)
             d->metricas.errores_contrato++;
             resultado = UI_DESP_ERR_CONTRATO;
             break;
-        } else {
+        } else if (r == UI_CB_DESP_ERROR_RECUPERADO) {
+            d->metricas.errores_vm++;
+            resultado = UI_DESP_ERR_CALLBACK;
+            break;
+        } else if (r != UI_CB_DESP_OMITIDO) {
             d->metricas.errores_vm++;
             d->estado_vm = UI_VM_COMPROMETIDA;
             resultado = UI_DESP_ERR_VM_COMPROMETIDA;

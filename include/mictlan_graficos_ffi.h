@@ -10,6 +10,7 @@ void mictlan_graficos_ffi_registrar(
     lat_mv *mv,
     MictlanLienzo *lienzo
 );
+void mictlan_graficos_ffi_conectar_plano(MictlanPlano *plano);
 
 /* Desconecta el lienzo al finalizar la sesion. */
 void mictlan_graficos_ffi_desconectar(void);

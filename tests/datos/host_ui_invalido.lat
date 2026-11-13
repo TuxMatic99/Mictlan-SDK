@@ -1,3 +1,3 @@
-# Error de estructura de UI, sin provocar un longjmp de Latino-Core.
+# Error de estructura de UI durante la carga protegida.
 ui.titulo("Estructura invalida")
 ui.boton(7, "Boton fuera de contenedor")

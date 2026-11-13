@@ -37,6 +37,10 @@ static struct {
     int titulos_correctos;
     int clics_correctos;
     int consultas_cierre;
+    int p1;
+    int ancho, alto, cuadros_anchos;
+    int caracteres_p1;
+    unsigned int comprobaciones_p1;
     char titulo[256];
 } pantalla;
 
@@ -49,6 +53,15 @@ static void reiniciar(int frames, bool fallar) {
 
 void SetExitKey(int key) { EXIGIR(key==KEY_NULL && pantalla.abierta); }
 bool IsKeyPressed(int key) {
+    if (pantalla.p1) {
+        const int f = pantalla.frames;
+        if (pantalla.p1 == 1) return key == KEY_ENTER && (f == 0 || f == 2);
+        if (pantalla.p1 == 2) return key == KEY_ENTER && f == 0;
+        if (pantalla.p1 == 3)
+            return (key == KEY_BACKSPACE && (f == 1 || f == 4 || f == 7)) ||
+                   (key == KEY_ENTER && (f == 3 || f == 6 || f == 9));
+        return key == KEY_ENTER;
+    }
     if (pantalla.persistencia) {
         int f=pantalla.frames, caso=pantalla.persistencia;
         return (key==KEY_ENTER && ((caso==2 || caso==4) ? f==1 : caso==3 && f==3)) ||
@@ -65,6 +78,12 @@ bool IsKeyDown(int key) {
     return pantalla.formulario && key==KEY_LEFT_SHIFT && (pantalla.frames==8 || pantalla.frames==9);
 }
 int GetCharPressed(void) {
+    if (pantalla.p1 == 3) {
+        int f = pantalla.frames;
+        if (pantalla.caracteres_p1 == f + 1) return 0;
+        pantalla.caracteres_p1 = f + 1;
+        return f == 2 ? '0' : f == 5 ? 'x' : f == 8 ? '8' : 0;
+    }
     if (pantalla.persistencia) {
         static const int nombre[]={'M','a','r',0xed,'a',' ',0xd1,0xe1,0xf1,'e','z',0};
         if (pantalla.frames!=0) return 0;
@@ -82,6 +101,8 @@ void InitWindow(int width, int height, const char *title) {
     EXIGIR(!pantalla.abierta && width > 0 && height > 0);
     pantalla.aperturas++;
     pantalla.abierta = !pantalla.fallar_apertura;
+    pantalla.ancho = width;
+    pantalla.alto = height;
     snprintf(pantalla.titulo, sizeof(pantalla.titulo), "%s", title);
 }
 bool IsWindowReady(void) { return pantalla.abierta; }
@@ -94,13 +115,19 @@ void SetWindowMinSize(int w, int h) { (void)w; (void)h; EXIGIR(pantalla.abierta)
 void SetTargetFPS(int fps) { EXIGIR(fps > 0 && pantalla.abierta); }
 bool WindowShouldClose(void) {
     EXIGIR(pantalla.abierta);
-    EXIGIR(++pantalla.consultas_cierre < 1000);
+    EXIGIR(++pantalla.consultas_cierre <= pantalla.max_frames + 2);
     return pantalla.frames >= pantalla.max_frames;
 }
-int GetScreenWidth(void) { return 900; }
-int GetScreenHeight(void) { return 600; }
-bool IsMouseButtonPressed(int button) { return !pantalla.formulario && !pantalla.persistencia && button == MOUSE_BUTTON_LEFT; }
-Vector2 GetMousePosition(void) { return (Vector2){35.0f, 81.0f}; }
+int GetScreenWidth(void) { return pantalla.p1 == 3 && pantalla.frames >= 6 ? 1200 : pantalla.ancho; }
+int GetScreenHeight(void) { return pantalla.p1 == 3 && pantalla.frames >= 6 ? 780 : pantalla.alto; }
+bool IsMouseButtonPressed(int button) {
+    if (pantalla.p1) return button == MOUSE_BUTTON_LEFT && pantalla.p1 == 1 && pantalla.frames == 0;
+    return !pantalla.formulario && !pantalla.persistencia && button == MOUSE_BUTTON_LEFT;
+}
+Vector2 GetMousePosition(void) {
+    if (pantalla.p1 == 1) return (Vector2){400, 102};
+    return (Vector2){35.0f, 81.0f};
+}
 bool CheckCollisionPointRec(Vector2 p, Rectangle r) {
     return p.x >= r.x && p.x <= r.x + r.width &&
            p.y >= r.y && p.y <= r.y + r.height;
@@ -127,8 +154,23 @@ void DrawText(const char *t, int x, int y, int tam, Color c) {
     }
     if (!strcmp(t, "Callback correcto")) pantalla.titulos_correctos++;
     if (!strcmp(t, "Ultimo clic: 7")) pantalla.clics_correctos++;
+    if (pantalla.p1 == 1 && !strcmp(t, "Se retiró una vez") && pantalla.frames == 0)
+        pantalla.comprobaciones_p1 |= 1;
+    if (pantalla.p1 == 3) {
+        if (pantalla.frames == 0 && !strcmp(t, "A · B = 63")) pantalla.comprobaciones_p1 |= 1;
+        if (pantalla.frames == 0 && !strcmp(t, "A + B = (8, 16)")) pantalla.comprobaciones_p1 |= 2;
+        if (pantalla.frames == 0 && !strcmp(t, "A - B = (-2, -8)")) pantalla.comprobaciones_p1 |= 4;
+        if (pantalla.frames == 0 && !strcmp(t, "|A| = 5    |B| = 13")) pantalla.comprobaciones_p1 |= 8;
+        if (pantalla.frames == 3 && !strcmp(t, "A · B = 48")) pantalla.comprobaciones_p1 |= 16;
+        if (pantalla.frames == 6 && strstr(t, "Revisa las componentes")) pantalla.comprobaciones_p1 |= 32;
+        if (pantalla.frames == 6 && !strcmp(t, "A · B = 48")) pantalla.comprobaciones_p1 |= 64;
+        if (pantalla.frames == 9 && !strcmp(t, "A · B = 88")) pantalla.comprobaciones_p1 |= 128;
+    }
 }
-void DrawRectangleRec(Rectangle r, Color c) { (void)r; (void)c; }
+void DrawRectangleRec(Rectangle r, Color c) {
+    if (pantalla.p1 == 3 && c.r == 250 && pantalla.frames == 9 && r.width > 550)
+        pantalla.cuadros_anchos++;
+}
 void DrawRectangleLinesEx(Rectangle r, float t, Color c) { (void)r; (void)t; (void)c; }
 void BeginScissorMode(int x, int y, int w, int h) { (void)x; (void)y; (void)w; (void)h; }
 void EndScissorMode(void) {}
@@ -225,6 +267,25 @@ static void probar_persistencia(const char *ruta) {
 int main(int argc, char **argv) {
     EXIGIR(argc == 3);
 
+    if (!strcmp(argv[1], "--p1") || !strcmp(argv[1], "--p1-error") ||
+        !strcmp(argv[1], "--p1-vectorlab") || !strcmp(argv[1], "--p1-carga")) {
+        int caso = !strcmp(argv[1], "--p1") ? 1 : !strcmp(argv[1], "--p1-error") ? 2 :
+                   !strcmp(argv[1], "--p1-vectorlab") ? 3 : 4;
+        int cuadros = caso == 3 ? 10 : caso == 4 ? 1000 : 3;
+        reiniciar(cuadros, false);
+        pantalla.p1 = caso;
+        char *args[] = {"host_ui", argv[2], NULL};
+        EXIGIR(latino_ui_host_main(2, args) == (caso == 2 ? EXIT_FAILURE : EXIT_SUCCESS));
+        EXIGIR(!pantalla.abierta && pantalla.aperturas == 1 && pantalla.cierres == 1);
+        if (caso == 1) EXIGIR(pantalla.frames == 2 && pantalla.comprobaciones_p1 == 1);
+        if (caso == 2) EXIGIR(pantalla.frames == 0);
+        if (caso == 3) {
+            EXIGIR(pantalla.frames == cuadros && pantalla.comprobaciones_p1 == 255);
+            EXIGIR(pantalla.cuadros_anchos == 1);
+        }
+        if (caso == 4) EXIGIR(pantalla.frames == cuadros);
+        return EXIT_SUCCESS;
+    }
 
     /* Prueba de la API grafica de Mictlan. */
     if (!strcmp(argv[1], "--graficos")) {

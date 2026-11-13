@@ -8,7 +8,7 @@
   "raylib_sha": "c1ab645ca298a2801097931d1079b10ff7eb9df8",
   "test_counts": {
     "verifiers": 65,
-    "sdk": 32,
+    "sdk": 34,
     "vm": 4,
     "integration": 4
   },

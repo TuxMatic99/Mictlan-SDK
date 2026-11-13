@@ -19,13 +19,16 @@ typedef enum {
     UI_DESP_ERR_COLA_LLENA,
     UI_DESP_ERR_CONTRATO,
     UI_DESP_ERR_VM_COMPROMETIDA,
-    UI_DESP_ERR_RELOJ
+    UI_DESP_ERR_RELOJ,
+    UI_DESP_ERR_CALLBACK
 } UIDespachoResultado;
 
 typedef enum {
     UI_CB_DESP_OK = 0,
     UI_CB_DESP_CONTRATO,
-    UI_CB_DESP_VM_ERROR
+    UI_CB_DESP_VM_ERROR,
+    UI_CB_DESP_ERROR_RECUPERADO,
+    UI_CB_DESP_OMITIDO
 } UIDespachoCallbackResultado;
 
 typedef UIDespachoCallbackResultado (*UIDespachoCallback)(void *usuario, int id);

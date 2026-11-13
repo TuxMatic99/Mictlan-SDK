@@ -1,0 +1,12 @@
+# La misma carga funciona con el host anterior y el actual.
+ui.titulo("Carga de callbacks")
+ui.iniciar_columna(8)
+    ui.boton(1, "Incrementar")
+    ui.etiqueta_id(2, "Estable")
+ui.fin_contenedor()
+pulsos_prueba = 0
+funcion __ui_despachar()
+    global pulsos_prueba = pulsos_prueba + 1
+    si pulsos_prueba < 0 error("contador inválido") fin
+    operacion_ok = ui.poner_texto(2, "Estable")
+fin

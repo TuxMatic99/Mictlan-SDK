@@ -56,9 +56,9 @@ bool lui_fin_contenedor(UIRuntime *ui) {
 bool lui_agregar_control(UIRuntime *ui, int id, UITipoWidget tipo, const char *texto) {
     if (!ui || ui->error[0]) return false;
     if (!ui->profundidad) return falla(ui, "Widget fuera de contenedor");
-    if (tipo < UI_WIDGET_ETIQUETA || tipo > UI_WIDGET_CAMPO_TEXTO)
+    if (tipo < UI_WIDGET_ETIQUETA || tipo > UI_WIDGET_LIENZO)
         return falla(ui, "Tipo de widget invalido");
-    if (!texto || (!texto[0] && tipo != UI_WIDGET_CAMPO_TEXTO) ||
+    if (!texto || (!texto[0] && tipo != UI_WIDGET_CAMPO_TEXTO && tipo != UI_WIDGET_LIENZO) ||
         !ui_utf8_validar(texto, NULL) || strlen(texto) >= LUI_TEXTO_MAX ||
         (tipo == UI_WIDGET_CAMPO_TEXTO && !campo_valido(texto)))
         return falla(ui, "Texto de widget invalido");
@@ -100,9 +100,16 @@ static size_t indice_id(const UIRuntime *ui, int id) {
         if (ui->nodos[i].tipo==UI_NODO_WIDGET && ui->nodos[i].id_widget==id) return i;
     return UI_NODO_NULO;
 }
+bool lui_buscar_control(const UIRuntime *ui, int id, size_t *indice) {
+    size_t i = indice_id(ui, id);
+    if (i == UI_NODO_NULO) return false;
+    if (indice) *indice = i;
+    return true;
+}
 static bool enfocable(const UIRuntime *ui, size_t i) {
     return ui && i<ui->arbol.cantidad && ui->nodos[i].tipo==UI_NODO_WIDGET &&
-        ui->tipos[i]!=UI_WIDGET_ETIQUETA && ui->habilitados[i];
+        (ui->tipos[i]==UI_WIDGET_BOTON || ui->tipos[i]==UI_WIDGET_CAMPO_TEXTO) &&
+        ui->habilitados[i];
 }
 bool lui_enfocar(UIRuntime *ui, int id) {
     size_t i=indice_id(ui,id);
