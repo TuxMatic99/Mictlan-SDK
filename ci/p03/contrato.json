@@ -133,6 +133,27 @@
         "sanitizers": 38
       }
     },
+    "alpha01": {
+      "sha": "f7fdbb0249c29db0c2ade965ea9ee36f3247cd7f",
+      "tests": {
+        "debug": 40,
+        "release": 40,
+        "sanitizers": 56
+      },
+      "added_exports": [
+        "latG_habilitar",
+        "latG_autorizar",
+        "latG_retener",
+        "latG_soltar",
+        "latG_recolectar",
+        "latG_medir"
+      ],
+      "stress": {
+        "base": "p02f_e",
+        "abi_previa": "p02g",
+        "release_seconds": 60
+      }
+    },
     "p02g": {
       "sha": "4e172c48364ffaa7cbaa2edb975617a30709213c",
       "tests": {
@@ -160,7 +181,7 @@
     "mictlan_memoria_propiedad_anidada_asan",
     "mictlan_memoria_elemento_repetido_asan"
   ],
-  "campaign": "P0.2-G/P0.4",
+  "campaign": "Mictlán Alpha 0.1",
   "p02f_observations": {
     "baseline_run": "https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43164505980",
     "owner_run": "https://github.com/TuxMatic99/Mictlan-SDK/actions/runs/43166246005",

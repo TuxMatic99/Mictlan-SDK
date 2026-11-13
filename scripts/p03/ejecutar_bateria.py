@@ -94,6 +94,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--stress-build', type=Path)
     parser.add_argument('--comparison-core-build', type=Path)
+    parser.add_argument('--prior-core-build', type=Path)
     parser.add_argument('--profile', choices=['debug', 'release', 'sanitizers'], required=True)
     parser.add_argument('--core-revision', default='p02e', help='Clave exacta de core_revisions en contrato.json')
     parser.add_argument('--expected-sdk-sha', required=True)
@@ -142,6 +143,8 @@ def main():
         revision = lock['core_revisions'][args.core_revision]
         if revision.get('stress') and (not args.stress_build or not args.comparison_core_build):
             raise InvalidConfig('La comparacion P0.4 requiere los dos builds de memoria')
+        if revision.get('stress', {}).get('abi_previa') and not args.prior_core_build:
+            raise InvalidConfig('Falta el build de ABI de P0.2-G')
         report['core_revision'] = args.core_revision
         report['host_process'] = Path('/proc/self/status').read_text() if Path('/proc/self/status').exists() else 'unavailable'
         report['environment'] = {key: env.get(key) for key in ['ASAN_OPTIONS', 'UBSAN_OPTIONS', 'LSAN_OPTIONS', 'CPATH', 'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD']}

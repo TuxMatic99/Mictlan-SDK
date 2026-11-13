@@ -7,6 +7,15 @@
       "match": "#.*$"
     },
     {
+      "name": "comment.line.double-slash.mictlan",
+      "match": "//.*$"
+    },
+    {
+      "name": "comment.block.mictlan",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    {
       "name": "string.quoted.double.mictlan",
       "begin": "\"",
       "end": "\"",
@@ -34,15 +43,15 @@
     },
     {
       "name": "constant.language.mictlan",
-      "match": "\\b(?:verdadero|falso|nulo)\\b"
+      "match": "\\b(?:verdadero|cierto|falso|nulo)\\b"
     },
     {
       "name": "keyword.control.mictlan",
-      "match": "\\b(?:si|sino|mientras|para|retornar|romper|continuar|funcion|clase|incluir)\\b"
+      "match": "\\b(?:si|osi|sino|fin|elegir|caso|otro|defecto|mientras|repetir|hasta|desde|para|en|rango|romper|continuar|funcion|fun|retorno|retornar|regresar|devolver|ret|global|ir|clase|constructor|hereda|super|mi|estatico|nueva)\\b"
     },
     {
       "name": "support.function.mictlan",
-      "match": "\\b(?:escribir)\\b(?=\\s*\\()"
+      "match": "\\b(?:escribir|poner|imprimir|imprimirf|incluir|error|tipo|anumero|acadena|alogico|leer)\\b(?=\\s*\\()"
     },
     {
       "name": "entity.name.type.module.mictlan",

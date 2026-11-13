@@ -7,6 +7,14 @@ import xml.etree.ElementTree as ET
 from verificar_errores import InvalidConfig, read_cache, sha256
 
 
+def exports_de(run, label, library):
+    rc, text, _ = run(label, ['nm', '-D', '--defined-only', library])
+    exports = {line.split()[-1].split('@')[0] for line in text.splitlines() if line.split()}
+    if rc or not exports:
+        raise InvalidConfig('No se pudieron leer los símbolos de ' + str(library))
+    return exports
+
+
 def run_stress(run, args, lock, revision, exports, classify, aggregate):
     binary = (args.stress_build / 'p04_carga').resolve()
     old_consumer = (args.stress_build / 'p04_sdk_anterior').resolve()
@@ -21,11 +29,27 @@ def run_stress(run, args, lock, revision, exports, classify, aggregate):
         raise InvalidConfig('La base de la carga debe estar limpia')
     base_library = base / 'liblatino.so'
     paths = {p: sha256(p) for p in [binary, old_consumer, base_library, candidate / 'liblatino.so']}
-    rc, symbols, _ = run('p04-base-exports', ['nm', '-D', '--defined-only', base_library])
-    base_exports = {line.split()[-1].split('@')[0] for line in symbols.splitlines() if line.split()}
+    base_exports = exports_de(run, 'p04-base-exports', base_library)
     removed, added = base_exports - exports, exports - base_exports
-    if rc or not base_exports or removed or added != set(revision['added_exports']):
+    if removed or added != set(revision['added_exports']):
         raise InvalidConfig('Cambios inesperados en las exportaciones de Core')
+    prior_abi = None
+    prior_key = revision['stress'].get('abi_previa')
+    if prior_key:
+        prior = args.prior_core_build.resolve()
+        prior_source = Path(read_cache(prior)['CMAKE_HOME_DIRECTORY'])
+        rc, prior_sha, _ = run('p04-prior-sha', ['git', '-C', prior_source, 'rev-parse', 'HEAD'])
+        if rc or prior_sha.strip() != lock['core_revisions'][prior_key]['sha']:
+            raise InvalidConfig('Revisión de ABI previa incorrecta')
+        rc, dirty, _ = run('p04-prior-status', ['git', '-C', prior_source, 'status', '--porcelain'])
+        if rc or dirty.strip():
+            raise InvalidConfig('La ABI previa requiere un árbol limpio')
+        prior_library = prior / 'liblatino.so'
+        paths[prior_library] = sha256(prior_library)
+        prior_exports = exports_de(run, 'p04-prior-exports', prior_library)
+        if prior_exports != exports:
+            raise InvalidConfig('Alpha cambia el conjunto de símbolos de P0.2-G')
+        prior_abi = {'sha': prior_sha.strip(), 'exports': len(prior_exports), 'equal': True}
     modes = [('fe', base, 'base'), ('g-sin', candidate, 'base'),
              ('g', candidate, 'recolectar')]
     for binary_name, executable in [('stress', binary), ('sdk-anterior', old_consumer)]:
@@ -71,12 +95,30 @@ def run_stress(run, args, lock, revision, exports, classify, aggregate):
                     status = 'FAIL_PROGRAM'
             rows.append({'name': label, 'status': status, 'returncode': rc, 'samples': samples})
             add_result(suite, label, status, out, err)
+    duration = revision['stress'].get('release_seconds')
+    if args.profile == 'release' and duration:
+        label = 'stress-g-sesion'
+        rc, out, err = run(label, [binary, 'recolectar', '10000000', str(duration)],
+                           timeout=duration + 60, library=candidate)
+        status = classify(out + err, rc != 0)
+        try:
+            samples = [json.loads(line) for line in out.splitlines()]
+            if status == 'PASS' and (samples[-1]['segundos'] < duration or
+               samples[-1]['reservas_recuperadas'] <= 0 or samples[-1]['operaciones'] < 100000):
+                status = 'FAIL_PROGRAM'
+        except (ValueError, IndexError, KeyError):
+            samples = []
+            if status == 'PASS':
+                status = 'FAIL_PROGRAM'
+        rows.append({'name': label, 'status': status, 'returncode': rc, 'samples': samples})
+        add_result(suite, label, status, out, err)
     if any(sha256(p) != digest for p, digest in paths.items()):
         raise InvalidConfig('Cambio un binario durante la carga')
     ET.ElementTree(suite).write(args.output / 'stress.xml', encoding='utf-8', xml_declaration=True)
     return {'status': aggregate([r['status'] for r in rows + compatibility])[0],
             'cases': rows, 'old_consumer': compatibility, 'base_sha': sha.strip(),
-            'exports': {'base_count': len(base_exports), 'added': sorted(added), 'removed': sorted(removed)},
+            'exports': {'base_count': len(base_exports), 'added': sorted(added), 'removed': sorted(removed),
+                        'prior': prior_abi},
             'hashes': {str(p): h for p, h in paths.items()}}
 
 

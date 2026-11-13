@@ -82,12 +82,12 @@ for component in sdk vm integration; do
 done
 cmake -S "$sdk/tests/p03" -B "$work/verifiers"
 stress_args=()
-if [[ "$revision" == p02g ]]; then
+if [[ "$revision" == p02g || "$revision" == alpha01 ]]; then
     baseline=$(realpath "$core/../core-fe")
-    baseline_sha=$(python3 - "$sdk/ci/p03/contrato.json" <<'PY'
+    baseline_sha=$(python3 - "$sdk/ci/p03/contrato.json" "$revision" <<'PY'
 import json, sys
 lock = json.load(open(sys.argv[1]))
-print(lock['core_revisions'][lock['core_revisions']['p02g']['stress']['base']]['sha'])
+print(lock['core_revisions'][lock['core_revisions'][sys.argv[2]]['stress']['base']]['sha'])
 PY
 )
     test "$(git -C "$baseline" rev-parse HEAD)" = "$baseline_sha"
@@ -105,6 +105,18 @@ PY
         "-DP04_BASE_INCLUDE=$baseline/include" "-DP04_BASE_LIBRARY=$work/core-fe/liblatino.so"
     cmake --build "$work/stress" --parallel 2
     stress_args=(--stress-build "$work/stress" --comparison-core-build "$work/core-fe")
+    if [[ "$revision" == alpha01 ]]; then
+        previa=$(realpath "$core/../core-g")
+        previa_sha=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["core_revisions"]["p02g"]["sha"])' "$sdk/ci/p03/contrato.json")
+        test "$(git -C "$previa" rev-parse HEAD)" = "$previa_sha"
+        test -z "$(git -C "$previa" status --porcelain)"
+        cmake -S "$previa" -B "$work/core-g" "-DCMAKE_BUILD_TYPE=$build_type" \
+            -DCMAKE_C_COMPILER=gcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            "-DCMAKE_C_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$link_flags" \
+            "-DCMAKE_SHARED_LINKER_FLAGS=$link_flags"
+        cmake --build "$work/core-g" --target liblatino --parallel 2
+        stress_args+=(--prior-core-build "$work/core-g")
+    fi
 fi
 stage=tests
 python3 "$sdk/tests/p03_ci/probar_resultados.py"
