@@ -206,8 +206,10 @@ def captura(wid, destino):
 
 def sesion(path):
     try:
-        return path.read_text().splitlines()
+        return path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
+        return None
+    except UnicodeDecodeError:
         return None
 
 
@@ -276,11 +278,13 @@ def registro():
         assert sesion(ruta) == esperado, "Recuperar no restauró lo guardado"
 
         # Un nombre válido y una nota dañada deben rechazarse juntos.
-        ruta.write_bytes(b"Registro-v1\nIntruso\ninv\xc0\xaf\n")
+        corrupto = b"Registro-v1\nIntruso\ninv\xc0\xaf\n"
+        ruta.write_bytes(corrupto)
         tecla("Tab")
         tecla("Tab")
         tecla("Tab")
         tecla("Return")
+        assert ruta.read_bytes() == corrupto, "Recuperar cambió el archivo"
         tecla("Tab")
         tecla("Tab")
         tecla("Tab")
